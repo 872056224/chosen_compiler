@@ -32,3 +32,9 @@ add_library(ll1Sema OBJECT
 )
 target_include_directories(ll1Sema PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(ll1Sema PUBLIC ll1Parse ll1AST ll1Lex)
+
+add_library(ll1IRGen OBJECT
+    IRGen/IRGen.cpp
+)
+target_include_directories(ll1IRGen PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(ll1IRGen PUBLIC ll1IR ll1Parse ll1AST)

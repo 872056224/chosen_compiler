@@ -38,3 +38,7 @@ add_test(NAME Parser COMMAND test_parser)
 add_executable(test_sema Sema/test_sema.cpp)
 target_link_libraries(test_sema PRIVATE ll1Sema ll1Parse ll1Lex ll1AST)
 add_test(NAME Sema COMMAND test_sema)
+
+add_executable(test_irgen IRGen/test_irgen.cpp)
+target_link_libraries(test_irgen PRIVATE ll1IRGen ll1Sema ll1Parse ll1Lex ll1AST ll1IR)
+add_test(NAME IRGen COMMAND test_irgen)
