@@ -34,3 +34,7 @@ add_test(NAME AST COMMAND test_ast)
 add_executable(test_parser Parse/test_parser.cpp)
 target_link_libraries(test_parser PRIVATE ll1Parse ll1Lex ll1AST)
 add_test(NAME Parser COMMAND test_parser)
+
+add_executable(test_sema Sema/test_sema.cpp)
+target_link_libraries(test_sema PRIVATE ll1Sema ll1Parse ll1Lex ll1AST)
+add_test(NAME Sema COMMAND test_sema)
