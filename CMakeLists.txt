@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
+# Testing
+enable_testing()
+
 # Subdirectories
 add_subdirectory(lib)
 add_subdirectory(tools)
