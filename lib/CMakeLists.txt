@@ -19,3 +19,9 @@ add_library(ll1AST OBJECT
     AST/AST.cpp
 )
 target_include_directories(ll1AST PUBLIC ${CMAKE_SOURCE_DIR}/include)
+
+add_library(ll1Parse OBJECT
+    Parse/Parser.cpp
+)
+target_include_directories(ll1Parse PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(ll1Parse PUBLIC ll1Lex ll1AST)

@@ -6,6 +6,8 @@
 #include <memory>
 #include <cstdint>
 
+#include <ll1/Lex/Token.h>
+
 namespace ll1 {
 
 // Forward declarations
@@ -14,12 +16,6 @@ class Type;
 // ====== Builtin type for AST (language-level) ======
 enum class BuiltinType { Void, Int, Char, Bool };
 const char *builtinTypeName(BuiltinType t);
-
-// ====== Source Location ======
-struct SourceLocation {
-    unsigned Line = 0;
-    unsigned Col = 0;
-};
 
 // ====== ASTNode (base) ======
 class ASTNode {
@@ -53,22 +49,6 @@ public:
     Decl(Kind k) : ASTNode(k) {}
 };
 
-class VarDecl : public Decl {
-public:
-    VarDecl(BuiltinType ty, std::string name, std::unique_ptr<class Expr> init = nullptr)
-        : Decl(Kind::VarDecl), Ty(ty), Name(std::move(name)), Init(std::move(init)) {}
-
-    BuiltinType getType() const { return Ty; }
-    const std::string &getName() const { return Name; }
-    Expr *getInit() const { return Init.get(); }
-    bool hasInit() const { return Init != nullptr; }
-
-private:
-    BuiltinType Ty;
-    std::string Name;
-    std::unique_ptr<Expr> Init;
-};
-
 class FuncDecl : public Decl {
 public:
     struct Param {
@@ -97,6 +77,22 @@ private:
 class Stmt : public ASTNode {
 public:
     Stmt(Kind k) : ASTNode(k) {}
+};
+
+class VarDecl : public Stmt {
+public:
+    VarDecl(BuiltinType ty, std::string name, std::unique_ptr<class Expr> init = nullptr)
+        : Stmt(Kind::VarDecl), Ty(ty), Name(std::move(name)), Init(std::move(init)) {}
+
+    BuiltinType getType() const { return Ty; }
+    const std::string &getName() const { return Name; }
+    Expr *getInit() const { return Init.get(); }
+    bool hasInit() const { return Init != nullptr; }
+
+private:
+    BuiltinType Ty;
+    std::string Name;
+    std::unique_ptr<Expr> Init;
 };
 
 class Block : public Stmt {

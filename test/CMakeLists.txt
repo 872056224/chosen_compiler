@@ -30,3 +30,7 @@ add_test(NAME Lexer COMMAND test_lexer)
 add_executable(test_ast AST/test_ast.cpp)
 target_link_libraries(test_ast PRIVATE ll1AST)
 add_test(NAME AST COMMAND test_ast)
+
+add_executable(test_parser Parse/test_parser.cpp)
+target_link_libraries(test_parser PRIVATE ll1Parse ll1Lex ll1AST)
+add_test(NAME Parser COMMAND test_parser)
