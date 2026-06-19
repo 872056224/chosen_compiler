@@ -38,3 +38,9 @@ add_library(ll1IRGen OBJECT
 )
 target_include_directories(ll1IRGen PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(ll1IRGen PUBLIC ll1IR ll1Parse ll1AST)
+
+add_library(ll1CodeGen OBJECT
+    CodeGen/CodeGen.cpp
+)
+target_include_directories(ll1CodeGen PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(ll1CodeGen PUBLIC ll1IR)

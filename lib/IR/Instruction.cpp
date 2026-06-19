@@ -1,5 +1,6 @@
 #include <ll1/IR/Instruction.h>
 #include <ll1/IR/BasicBlock.h>
+#include <ll1/IR/Function.h>
 
 namespace ll1 {
 
@@ -111,6 +112,16 @@ StoreInst::StoreInst(Value *val, Value *ptr)
 bool StoreInst::classof(const Value *v) {
     auto *I = dynamic_cast<const Instruction*>(v);
     return I && I->getOpcode() == Opcode::Store;
+}
+
+// CallInst
+CallInst::CallInst(Function *callee, const std::string &name)
+    : Instruction(Opcode::Call, Type::getVoidTy(), name) {
+    Operands.push_back(callee);
+}
+bool CallInst::classof(const Value *v) {
+    auto *I = dynamic_cast<const Instruction*>(v);
+    return I && I->getOpcode() == Opcode::Call;
 }
 
 // PhiInst

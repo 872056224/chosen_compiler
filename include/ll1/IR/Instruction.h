@@ -8,6 +8,7 @@
 namespace ll1 {
 
 class BasicBlock;
+class Function;
 
 class Instruction : public User {
 public:
@@ -95,6 +96,12 @@ public:
     StoreInst(Value *val, Value *ptr);
     Value *getValue() const { return getOperand(0); }
     Value *getPointer() const { return getOperand(1); }
+    static bool classof(const Value *v);
+};
+
+class CallInst : public Instruction {
+public:
+    CallInst(Function *callee, const std::string &name = "");
     static bool classof(const Value *v);
 };
 

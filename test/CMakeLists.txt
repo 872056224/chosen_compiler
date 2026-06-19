@@ -42,3 +42,7 @@ add_test(NAME Sema COMMAND test_sema)
 add_executable(test_irgen IRGen/test_irgen.cpp)
 target_link_libraries(test_irgen PRIVATE ll1IRGen ll1Sema ll1Parse ll1Lex ll1AST ll1IR)
 add_test(NAME IRGen COMMAND test_irgen)
+
+add_executable(test_codegen CodeGen/test_codegen.cpp)
+target_link_libraries(test_codegen PRIVATE ll1CodeGen ll1IR)
+add_test(NAME CodeGen COMMAND test_codegen)
