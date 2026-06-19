@@ -22,3 +22,7 @@ add_test(NAME Function COMMAND test_function)
 add_executable(test_irbuilder IR/test_irbuilder.cpp)
 target_link_libraries(test_irbuilder PRIVATE ll1IR)
 add_test(NAME IRBuilder COMMAND test_irbuilder)
+
+add_executable(test_lexer Lex/test_lexer.cpp)
+target_link_libraries(test_lexer PRIVATE ll1Lex)
+add_test(NAME Lexer COMMAND test_lexer)
