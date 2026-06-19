@@ -44,3 +44,9 @@ add_library(ll1CodeGen OBJECT
 )
 target_include_directories(ll1CodeGen PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(ll1CodeGen PUBLIC ll1IR)
+
+add_library(ll1Driver OBJECT
+    Driver/Compiler.cpp
+)
+target_include_directories(ll1Driver PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(ll1Driver PUBLIC ll1CodeGen ll1IRGen ll1Sema ll1Parse ll1Lex ll1AST ll1IR)

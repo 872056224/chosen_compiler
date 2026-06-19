@@ -46,3 +46,7 @@ add_test(NAME IRGen COMMAND test_irgen)
 add_executable(test_codegen CodeGen/test_codegen.cpp)
 target_link_libraries(test_codegen PRIVATE ll1CodeGen ll1IR)
 add_test(NAME CodeGen COMMAND test_codegen)
+
+add_executable(test_e2e Integration/test_e2e.cpp)
+target_link_libraries(test_e2e PRIVATE ll1Driver ll1CodeGen ll1IRGen ll1Sema ll1Parse ll1Lex ll1AST ll1IR)
+add_test(NAME Integration COMMAND test_e2e)
