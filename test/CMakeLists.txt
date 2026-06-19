@@ -18,3 +18,7 @@ add_test(NAME BasicBlock COMMAND test_bb)
 add_executable(test_function IR/test_function.cpp)
 target_link_libraries(test_function PRIVATE ll1IR)
 add_test(NAME Function COMMAND test_function)
+
+add_executable(test_irbuilder IR/test_irbuilder.cpp)
+target_link_libraries(test_irbuilder PRIVATE ll1IR)
+add_test(NAME IRBuilder COMMAND test_irbuilder)

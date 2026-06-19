@@ -127,4 +127,12 @@ bool PhiInst::classof(const Value *v) {
     return I && I->getOpcode() == Opcode::Phi;
 }
 
+// ConstantInt
+ConstantInt *ConstantInt::get(Type *ty, int16_t val) {
+    return new ConstantInt(ty, val);
+}
+bool ConstantInt::classof(const Value *v) {
+    return v->getKind() == ValueKind::Constant;
+}
+
 } // namespace ll1

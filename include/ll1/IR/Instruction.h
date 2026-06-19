@@ -2,6 +2,7 @@
 #define LL1_IR_INSTRUCTION_H
 
 #include <ll1/IR/User.h>
+#include <cstdint>
 #include <vector>
 
 namespace ll1 {
@@ -107,6 +108,16 @@ public:
     static bool classof(const Value *v);
 private:
     std::vector<BasicBlock *> IncomingBlocks;
+};
+
+class ConstantInt : public Value {
+public:
+    ConstantInt(Type *ty, int16_t val) : Value(ValueKind::Constant, ty), Val(val) {}
+    int16_t getValue() const { return Val; }
+    static ConstantInt *get(Type *ty, int16_t val);
+    static bool classof(const Value *v);
+private:
+    int16_t Val;
 };
 
 } // namespace ll1
