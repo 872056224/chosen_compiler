@@ -14,3 +14,8 @@ add_library(ll1Lex OBJECT
     Lex/Lexer.cpp
 )
 target_include_directories(ll1Lex PUBLIC ${CMAKE_SOURCE_DIR}/include)
+
+add_library(ll1AST OBJECT
+    AST/AST.cpp
+)
+target_include_directories(ll1AST PUBLIC ${CMAKE_SOURCE_DIR}/include)
