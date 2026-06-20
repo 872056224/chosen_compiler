@@ -16,10 +16,6 @@ std::string CodeGen::allocTempReg() {
     return r;
 }
 
-void CodeGen::freeTempReg(const std::string &) {
-    // Simple strategy: always cycle through regs, no tracking needed
-}
-
 std::string CodeGen::memOp(const std::string &base, int offset) {
     std::ostringstream ss;
     if (offset == 0) ss << "[" << base << "]";
@@ -32,29 +28,40 @@ std::string CodeGen::memOpBP(int offset) {
     return memOp("bp", offset);
 }
 
-std::string CodeGen::getVReg(Value *v) {
+// assignReg: allocate a physical register for a Value and remember it
+std::string CodeGen::assignReg(Value *v) {
     auto it = State.VRegNames.find(v);
     if (it != State.VRegNames.end()) return it->second;
-    std::string name = "t" + std::to_string(State.NextVReg++);
-    State.VRegNames[v] = name;
-    return name;
+    std::string r = allocTempReg();
+    State.VRegNames[v] = r;
+    return r;
 }
 
+// getReg: return the physical register already assigned, or empty if none
+std::string CodeGen::getReg(Value *v) {
+    auto it = State.VRegNames.find(v);
+    if (it != State.VRegNames.end()) return it->second;
+    return "";
+}
+
+// resolve operand to assembly text.
+// If it's already a real register, return it.
+// If it's memory ref or immediate, return as-is.
+// If it's a virtual reg → look up assigned physical reg.
 std::string CodeGen::getOperand(Value *v) {
     if (!v) return "0";
 
-    // Constant
-    if (auto *ci = dynamic_cast<ConstantInt*>(v)) {
-        return std::to_string(ci->getValue());
+    // Constant → immediate
+    if (dynamic_cast<ConstantInt*>(v)) {
+        return std::to_string(static_cast<ConstantInt*>(v)->getValue());
     }
 
-    // Alloca: compute stack offset
+    // Alloca → stack slot [bp+offset]
     if (auto *ai = dynamic_cast<AllocaInst*>(v)) {
         if (State.AllocaOffsets.count(v)) {
             return memOpBP(State.AllocaOffsets[v]);
         }
-        // First time: allocate stack space
-        int size = 2; // i16 = 2 bytes
+        int size = 2;
         if (ai->getAllocatedType() == Type::getInt8Ty()) size = 1;
         State.StackOffset -= size;
         State.AllocaOffsets[v] = State.StackOffset;
@@ -62,20 +69,52 @@ std::string CodeGen::getOperand(Value *v) {
         return memOpBP(State.StackOffset);
     }
 
-    // Label (BasicBlock)
+    // BasicBlock → label
     if (auto *bb = dynamic_cast<BasicBlock*>(v)) {
         return State.BlockLabels[bb];
     }
 
-    // Virtual register
-    return getVReg(v);
+    // Instruction result → lookup assigned physical register
+    std::string r = getReg(v);
+    if (!r.empty()) return r;
+
+    // Unmapped: assign one now
+    return assignReg(v);
+}
+
+// load value into a register → returns the register name
+std::string CodeGen::loadToReg(Value *v) {
+    // Already a constant → need a register
+    if (auto *ci = dynamic_cast<ConstantInt*>(v)) {
+        std::string r = allocTempReg();
+        emit("mov", r + ", " + std::to_string(ci->getValue()));
+        return r;
+    }
+
+    // Memory operand → load into register
+    std::string op = getOperand(v);
+    if (op.find('[') != std::string::npos) {
+        std::string r = allocTempReg();
+        emit("mov", r + ", " + op);
+        return r;
+    }
+
+    // May be a virtual reg reference
+    if (op == "ax" || op == "bx" || op == "cx" || op == "dx" ||
+        op == "si" || op == "di" || op == "bp" || op == "sp") {
+        return op;
+    }
+
+    // It's something else (already a register or immediate) — move to temp
+    std::string r = allocTempReg();
+    emit("mov", r + ", " + op);
+    return r;
 }
 
 void CodeGen::emit(const std::string &opcode, const std::string &operands, const std::string &comment) {
     std::string line = "    " + opcode;
     if (!operands.empty()) {
         line += " ";
-        // Pad for alignment
         if (opcode.length() < 4) line += "\t";
         line += operands;
     }
@@ -83,7 +122,8 @@ void CodeGen::emit(const std::string &opcode, const std::string &operands, const
         line += "  ; " + comment;
     }
     Out << line << "\n";
-    // Also store in the current MachineBB for emitAssembly
+
+    // Store raw text for emitAssembly
     if (!State.MF.Blocks.empty()) {
         State.MF.Blocks.back().TextLines.push_back(line);
     }
@@ -104,13 +144,11 @@ MachineModule CodeGen::generate(Module &mod) {
 }
 
 void CodeGen::generateFunction(Function &fn) {
-    // Assign labels
     for (auto &bb : fn.getBasicBlocks()) {
         std::string label = "." + fn.getName() + "_" + bb->getName();
         State.BlockLabels[bb.get()] = label;
     }
 
-    // Generate each BB
     for (auto &bb : fn.getBasicBlocks()) {
         generateBB(*bb);
     }
@@ -122,36 +160,42 @@ void CodeGen::generateBB(BasicBlock &bb) {
     State.MF.Blocks.push_back(mbb);
 
     for (auto &inst : bb.getInstList()) {
-        CurrentLabel = 0; // reset temp label counter per inst
         generateInst(*inst);
     }
 }
 
 void CodeGen::generateInst(Instruction &inst) {
     switch (inst.getOpcode()) {
+
     case Instruction::Opcode::Alloca: {
-        // Handled lazily in getOperand — just allocate stack slot
-        auto *ai = static_cast<AllocaInst*>(&inst);
-        getOperand(ai); // triggers allocation
+        getOperand(&inst); // trigger stack slot allocation
+        assignReg(&inst);  // remember this alloca for later use
         break;
     }
 
     case Instruction::Opcode::Store: {
         auto *si = static_cast<StoreInst*>(&inst);
-        std::string src = getOperand(si->getValue());
-        std::string dst = getOperand(si->getPointer());
+        Value *srcVal = si->getValue();
+        std::string dst = getOperand(si->getPointer()); // should be [bp+offset]
 
-        if (src.find('[') == std::string::npos && dst.find('[') != std::string::npos) {
-            // reg/imm → mem: need temp reg
-            std::string r = allocTempReg();
-            if (isdigit(src[0]) || src[0] == '-') {
-                emit("mov", r + ", " + src);
-            } else {
-                emit("mov", r + ", " + src);
-            }
-            emit("mov", dst + ", " + r);
+        // Load source into a register, then store to memory
+        std::string srcReg;
+        if (auto *ci = dynamic_cast<ConstantInt*>(srcVal)) {
+            srcReg = allocTempReg();
+            emit("mov", srcReg + ", " + std::to_string(ci->getValue()));
         } else {
-            emit("mov", dst + ", " + src);
+            std::string srcOp = getOperand(srcVal);
+            if (srcOp.find('[') != std::string::npos) {
+                // mem → mem: need intermediate register
+                std::string tmp = allocTempReg();
+                emit("mov", tmp + ", " + srcOp);
+                srcReg = tmp;
+            } else {
+                srcReg = srcOp;
+            }
+        }
+        if (srcReg != dst) {
+            emit("mov", dst + ", " + srcReg);
         }
         break;
     }
@@ -159,55 +203,43 @@ void CodeGen::generateInst(Instruction &inst) {
     case Instruction::Opcode::Load: {
         auto *li = static_cast<LoadInst*>(&inst);
         std::string ptr = getOperand(li->getPointer());
-        std::string dst = getVReg(&inst);
-        if (ptr.find('[') != std::string::npos) {
-            std::string r = allocTempReg();
-            emit("mov", r + ", " + ptr);
-            emit("mov", dst + ", " + r);
-        } else {
-            emit("mov", dst + ", " + ptr);
-        }
+        // Load from memory into a real register
+        std::string r = allocTempReg();
+        emit("mov", r + ", " + ptr, "load " + li->getName());
+        State.VRegNames[&inst] = r;
         break;
     }
 
     case Instruction::Opcode::Add: {
         auto *bo = static_cast<BinaryOpInst*>(&inst);
-        std::string lhs = getOperand(bo->getLHS());
+        std::string lhsReg = loadToReg(bo->getLHS());
         std::string rhs = getOperand(bo->getRHS());
-        std::string r = allocTempReg();
-        // mov r, lhs
-        if (isdigit(lhs[0]) || lhs[0] == '-') emit("mov", r + ", " + lhs);
-        else emit("mov", r + ", " + lhs);
-        // add r, rhs
-        emit("add", r + ", " + rhs);
-        State.VRegNames[&inst] = r;
+        emit("add", lhsReg + ", " + rhs);
+        State.VRegNames[&inst] = lhsReg;
         break;
     }
 
     case Instruction::Opcode::Sub: {
         auto *bo = static_cast<BinaryOpInst*>(&inst);
-        std::string r = allocTempReg();
-        std::string lhs = getOperand(bo->getLHS());
-        if (isdigit(lhs[0]) || lhs[0] == '-') emit("mov", r + ", " + lhs);
-        else emit("mov", r + ", " + lhs);
+        std::string lhsReg = loadToReg(bo->getLHS());
         std::string rhs = getOperand(bo->getRHS());
-        emit("sub", r + ", " + rhs);
-        State.VRegNames[&inst] = r;
+        emit("sub", lhsReg + ", " + rhs);
+        State.VRegNames[&inst] = lhsReg;
         break;
     }
 
     case Instruction::Opcode::Mul: {
         auto *bo = static_cast<BinaryOpInst*>(&inst);
-        std::string lhs = getOperand(bo->getLHS());
+        // Multiply: ax = ax * src
+        std::string lhsReg = loadToReg(bo->getLHS());
         std::string rhs = getOperand(bo->getRHS());
-        // mov ax, lhs
-        if (isdigit(lhs[0]) || lhs[0] == '-') emit("mov", "ax, " + lhs);
-        else emit("mov", "ax, " + lhs);
-        // mul rhs → result in ax (or dx:ax)
-        if (isdigit(rhs[0]) || rhs[0] == '-') {
-            std::string r = allocTempReg();
-            emit("mov", r + ", " + rhs);
-            emit("mul", r);
+        // Move lhs to ax
+        if (lhsReg != "ax") emit("mov", "ax, " + lhsReg);
+        // Move rhs to temp if it's immediate or mem
+        if (rhs.find('[') != std::string::npos || isdigit(rhs[0]) || rhs[0] == '-') {
+            std::string tmp = allocTempReg();
+            emit("mov", tmp + ", " + rhs);
+            emit("mul", tmp);
         } else {
             emit("mul", rhs);
         }
@@ -217,14 +249,14 @@ void CodeGen::generateInst(Instruction &inst) {
 
     case Instruction::Opcode::SDiv: {
         auto *bo = static_cast<BinaryOpInst*>(&inst);
-        std::string lhs = getOperand(bo->getLHS());
+        std::string lhsReg = loadToReg(bo->getLHS());
         std::string rhs = getOperand(bo->getRHS());
-        emit("mov", "ax, " + lhs);
+        if (lhsReg != "ax") emit("mov", "ax, " + lhsReg);
         emit("cwd", ""); // sign-extend ax → dx:ax
-        if (isdigit(rhs[0]) || rhs[0] == '-') {
-            std::string r = allocTempReg();
-            emit("mov", r + ", " + rhs);
-            emit("idiv", r);
+        if (rhs.find('[') != std::string::npos || isdigit(rhs[0]) || rhs[0] == '-') {
+            std::string tmp = allocTempReg();
+            emit("mov", tmp + ", " + rhs);
+            emit("idiv", tmp);
         } else {
             emit("idiv", rhs);
         }
@@ -234,14 +266,14 @@ void CodeGen::generateInst(Instruction &inst) {
 
     case Instruction::Opcode::SRem: {
         auto *bo = static_cast<BinaryOpInst*>(&inst);
-        std::string lhs = getOperand(bo->getLHS());
+        std::string lhsReg = loadToReg(bo->getLHS());
         std::string rhs = getOperand(bo->getRHS());
-        emit("mov", "ax, " + lhs);
+        if (lhsReg != "ax") emit("mov", "ax, " + lhsReg);
         emit("cwd", "");
-        if (isdigit(rhs[0]) || rhs[0] == '-') {
-            std::string r = allocTempReg();
-            emit("mov", r + ", " + rhs);
-            emit("idiv", r);
+        if (rhs.find('[') != std::string::npos || isdigit(rhs[0]) || rhs[0] == '-') {
+            std::string tmp = allocTempReg();
+            emit("mov", tmp + ", " + rhs);
+            emit("idiv", tmp);
         } else {
             emit("idiv", rhs);
         }
@@ -251,25 +283,16 @@ void CodeGen::generateInst(Instruction &inst) {
 
     case Instruction::Opcode::ICmp: {
         auto *ci = static_cast<ICmpInst*>(&inst);
-        std::string lhs = getOperand(ci->getOperand(0));
+        std::string lhsReg = loadToReg(ci->getOperand(0));
         std::string rhs = getOperand(ci->getOperand(1));
-        std::string r = allocTempReg();
-        // mov r, lhs; cmp r, rhs
-        if (isdigit(lhs[0]) || lhs[0] == '-') emit("mov", r + ", " + lhs);
-        else emit("mov", r + ", " + lhs);
-        emit("cmp", r + ", " + rhs);
-        // Result goes to a virtual reg — the branch handles it
-        State.VRegNames[&inst] = r;  // value is in flags, handled by branch
+        emit("cmp", lhsReg + ", " + rhs);
+        State.VRegNames[&inst] = lhsReg; // flags set, handled by branch
         break;
     }
 
     case Instruction::Opcode::Br: {
         auto *bi = static_cast<BranchInst*>(&inst);
         if (bi->isConditional()) {
-            // Conditional branch: needs cmp before it
-            // The condition's ICmp result sets flags
-            // Map predicate to jump instruction
-            // Find the ICmp that produced the condition
             auto *cond = bi->getCondition();
             std::string trueLabel = State.BlockLabels[bi->getTrueDest()];
             std::string falseLabel = State.BlockLabels[bi->getFalseDest()];
@@ -286,8 +309,7 @@ void CodeGen::generateInst(Instruction &inst) {
                 }
                 emit("jmp", falseLabel);
             } else {
-                // Generic: test cond, jnz true
-                std::string cr = getOperand(cond);
+                std::string cr = loadToReg(cond);
                 emit("cmp", cr + ", 0");
                 emit("jne", trueLabel);
                 emit("jmp", falseLabel);
@@ -301,20 +323,20 @@ void CodeGen::generateInst(Instruction &inst) {
     case Instruction::Opcode::Ret: {
         auto *ri = static_cast<RetInst*>(&inst);
         if (ri->getReturnValue()) {
-            std::string val = getOperand(ri->getReturnValue());
-            if (isdigit(val[0]) || val[0] == '-')
-                emit("mov", "ax, " + val);
-            else
-                emit("mov", "ax, " + val);
+            std::string val = loadToReg(ri->getReturnValue());
+            if (val != "ax") emit("mov", "ax, " + val);
+        }
+        // Epilogue before return
+        if (State.MF.StackSize > 0) {
+            emit("mov", "sp, bp");
+            emit("pop", "bp");
         }
         emit("ret", "");
         break;
     }
 
     case Instruction::Opcode::Call: {
-        // For MVP, call is simplified — just emit call <label>
         auto *ci = static_cast<CallInst*>(&inst);
-        // The callee is a Function*
         if (auto *fn = dynamic_cast<Function*>(ci->getOperand(0))) {
             emit("call", fn->getName());
         }
@@ -323,7 +345,7 @@ void CodeGen::generateInst(Instruction &inst) {
 
     case Instruction::Opcode::And:
     case Instruction::Opcode::Or:
-        // Bitwise ops — for now, treat as arithmetic
+    case Instruction::Opcode::Xor:
         break;
 
     default:
@@ -335,7 +357,6 @@ void CodeGen::generateInst(Instruction &inst) {
 std::string CodeGen::emitAssembly(const MachineModule &mm) {
     std::ostringstream asmOut;
 
-    // Data section
     if (!mm.DataSection.empty()) {
         asmOut << ".data\n";
         for (auto &d : mm.DataSection) {
@@ -343,40 +364,38 @@ std::string CodeGen::emitAssembly(const MachineModule &mm) {
         }
     }
 
-    // Code section
     asmOut << ".code\n";
     for (auto &fn : mm.Functions) {
         asmOut << "\n; Function: " << fn.Name << "\n";
-
-        // Function prologue
         asmOut << fn.Name << " proc\n";
-        if (fn.StackSize > 0) {
+
+        // Prologue: only if not already emitted in TextLines
+        bool hasPrologue = false;
+        for (auto &bb : fn.Blocks) {
+            for (auto &line : bb.TextLines) {
+                if (line.find("push bp") != std::string::npos ||
+                    line.find("mov  bp, sp") != std::string::npos) {
+                    hasPrologue = true;
+                    break;
+                }
+            }
+        }
+        if (!hasPrologue && fn.StackSize > 0) {
             asmOut << "    push bp\n";
             asmOut << "    mov  bp, sp\n";
             asmOut << "    sub  sp, " << fn.StackSize << "\n";
         }
 
-        // Blocks
         for (auto &bb : fn.Blocks) {
-            // Emit label if it's not just a fall-through
-            bool needLabel = true;
-            if (&bb == &fn.Blocks.front() && bb.Label.find("entry") != std::string::npos) {
-                needLabel = false; // First entry block doesn't need explicit label
-            }
-            if (needLabel && bb.Label.size() > 0) {
+            bool isEntry = (&bb == &fn.Blocks.front());
+            if (!isEntry || bb.Label.find("entry") == std::string::npos) {
                 asmOut << bb.Label << ":\n";
             }
-            // Output raw text lines from emit()
             for (auto &line : bb.TextLines) {
                 asmOut << line << "\n";
             }
         }
 
-        // Function epilogue
-        if (fn.StackSize > 0) {
-            asmOut << "    mov  sp, bp\n";
-            asmOut << "    pop  bp\n";
-        }
         asmOut << fn.Name << " endp\n";
     }
 

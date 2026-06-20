@@ -26,8 +26,7 @@ private:
     // State per function
     struct FuncState {
         MachineFunction MF;
-        std::map<Value*, std::string> VRegNames; // IR Value → virtual reg name
-        int NextVReg = 0;
+        std::map<Value*, std::string> VRegNames; // IR Value → physical reg (ax/bx/cx/dx)
         int StackOffset = 0;  // grows downward from bp
         std::map<Value*, int> AllocaOffsets; // alloca → stack offset
         std::map<BasicBlock*, std::string> BlockLabels;
@@ -41,21 +40,21 @@ private:
 
     // Operand helpers
     std::string getOperand(Value *v);
-    std::string getVReg(Value *v);
+    std::string assignReg(Value *v);
+    std::string getReg(Value *v);
+    std::string loadToReg(Value *v);
 
     // Emit helpers
     void emit(const std::string &opcode, const std::string &operands = "", const std::string &comment = "");
 
     // Output stream
     std::ostringstream Out;
-    int CurrentLabel = 0;
 
     // 8086 registers for temp values
     static const char *TempRegs[];
     static const int NumTempRegs;
     int NextTempReg = 0;
     std::string allocTempReg();
-    void freeTempReg(const std::string &r);
 
     // Mem operand
     std::string memOp(const std::string &base, int offset);
