@@ -1,0 +1,1853 @@
+// Bubble sort of 20 random numbers (1-500)
+
+fn int main() {
+    // The 20 numbers
+    int a0 = 328;
+    int a1 = 58;
+    int a2 = 13;
+    int a3 = 380;
+    int a4 = 141;
+    int a5 = 126;
+    int a6 = 115;
+    int a7 = 72;
+    int a8 = 378;
+    int a9 = 53;
+    int a10 = 347;
+    int a11 = 380;
+    int a12 = 457;
+    int a13 = 280;
+    int a14 = 45;
+    int a15 = 303;
+    int a16 = 217;
+    int a17 = 17;
+    int a18 = 16;
+    int a19 = 48;
+    int temp = 0;
+
+    // Pass 1
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 2
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 3
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 4
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 5
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 6
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 7
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 8
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 9
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 10
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 11
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 12
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 13
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 14
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 15
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 16
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 17
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 18
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+    // Pass 19
+    if (a0 > a1) {
+        temp = a0;
+        a0 = a1;
+        a1 = temp;
+    }
+    if (a1 > a2) {
+        temp = a1;
+        a1 = a2;
+        a2 = temp;
+    }
+    if (a2 > a3) {
+        temp = a2;
+        a2 = a3;
+        a3 = temp;
+    }
+    if (a3 > a4) {
+        temp = a3;
+        a3 = a4;
+        a4 = temp;
+    }
+    if (a4 > a5) {
+        temp = a4;
+        a4 = a5;
+        a5 = temp;
+    }
+    if (a5 > a6) {
+        temp = a5;
+        a5 = a6;
+        a6 = temp;
+    }
+    if (a6 > a7) {
+        temp = a6;
+        a6 = a7;
+        a7 = temp;
+    }
+    if (a7 > a8) {
+        temp = a7;
+        a7 = a8;
+        a8 = temp;
+    }
+    if (a8 > a9) {
+        temp = a8;
+        a8 = a9;
+        a9 = temp;
+    }
+    if (a9 > a10) {
+        temp = a9;
+        a9 = a10;
+        a10 = temp;
+    }
+    if (a10 > a11) {
+        temp = a10;
+        a10 = a11;
+        a11 = temp;
+    }
+    if (a11 > a12) {
+        temp = a11;
+        a11 = a12;
+        a12 = temp;
+    }
+    if (a12 > a13) {
+        temp = a12;
+        a12 = a13;
+        a13 = temp;
+    }
+    if (a13 > a14) {
+        temp = a13;
+        a13 = a14;
+        a14 = temp;
+    }
+    if (a14 > a15) {
+        temp = a14;
+        a14 = a15;
+        a15 = temp;
+    }
+    if (a15 > a16) {
+        temp = a15;
+        a15 = a16;
+        a16 = temp;
+    }
+    if (a16 > a17) {
+        temp = a16;
+        a16 = a17;
+        a17 = temp;
+    }
+    if (a17 > a18) {
+        temp = a17;
+        a17 = a18;
+        a18 = temp;
+    }
+    if (a18 > a19) {
+        temp = a18;
+        a18 = a19;
+        a19 = temp;
+    }
+
+    return a0;
+}
