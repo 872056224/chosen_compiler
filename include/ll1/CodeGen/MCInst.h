@@ -36,7 +36,7 @@ struct MachineBB {
 struct MachineFunction {
     std::string Name;
     std::vector<MachineBB> Blocks;
-    int StackSize = 0;  // Total bytes of locals
+    std::vector<std::string> VarDecls; // "label dw 0" lines for data section
 };
 
 // Machine module (output)

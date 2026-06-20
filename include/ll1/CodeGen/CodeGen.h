@@ -26,9 +26,10 @@ private:
     // State per function
     struct FuncState {
         MachineFunction MF;
-        std::map<Value*, std::string> VRegNames; // IR Value → physical reg (ax/bx/cx/dx)
-        int StackOffset = 0;  // grows downward from bp
-        std::map<Value*, int> AllocaOffsets; // alloca → stack offset
+        std::map<Value*, std::string> VRegNames; // IR Value → physical reg
+        std::map<Value*, std::string> VarLabels; // Alloca → data label
+        std::vector<std::string> VarDecls;        // "label dw 0" lines
+        int VarCount = 0;
         std::map<BasicBlock*, std::string> BlockLabels;
     };
 
@@ -43,6 +44,7 @@ private:
     std::string assignReg(Value *v);
     std::string getReg(Value *v);
     std::string loadToReg(Value *v);
+    std::string varLabel(Value *v);
 
     // Emit helpers
     void emit(const std::string &opcode, const std::string &operands = "", const std::string &comment = "");
