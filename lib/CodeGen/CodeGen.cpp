@@ -443,6 +443,9 @@ std::string CodeGen::emitAssembly(const MachineModule &mm) {
         asmOut << "    mov  ah, 02h\n";
         asmOut << "    int  21h\n";
         asmOut << "    loop __print_disp\n";
+        asmOut << "    mov  dl, ' '\n";
+        asmOut << "    mov  ah, 02h\n";
+        asmOut << "    int  21h\n";
         asmOut << "    pop  dx\n";
         asmOut << "    pop  cx\n";
         asmOut << "    pop  bx\n";
