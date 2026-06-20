@@ -1,4 +1,0 @@
-fn int main() {
-    int x = read();
-    return x;
-}
