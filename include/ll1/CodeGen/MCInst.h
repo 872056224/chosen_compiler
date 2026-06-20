@@ -36,7 +36,6 @@ struct MachineBB {
 struct MachineFunction {
     std::string Name;
     std::vector<MachineBB> Blocks;
-    std::vector<std::string> VarDecls; // "label dw 0" lines for data section
 };
 
 // Machine module (output)

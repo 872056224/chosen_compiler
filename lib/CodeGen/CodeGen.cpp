@@ -5,8 +5,9 @@
 
 namespace ll1 {
 
-const char *CodeGen::TempRegs[] = {"ax", "bx", "cx", "dx"};
-const int CodeGen::NumTempRegs = 4;
+// BX reserved as base pointer, only AX/CX/DX for temps
+const char *CodeGen::TempRegs[] = {"ax", "cx", "dx"};
+const int CodeGen::NumTempRegs = 3;
 
 CodeGen::CodeGen() {}
 
@@ -16,15 +17,20 @@ std::string CodeGen::allocTempReg() {
     return r;
 }
 
-// For MVP: each alloca gets a data label instead of [bp+offset].
-// This avoids bracket syntax that simple online emulators reject.
+// Each alloca gets a [bx+offset] memory operand.
+// BX is the dedicated base pointer, initialized at function entry.
 std::string CodeGen::varLabel(Value *v) {
-    auto it = State.VarLabels.find(v);
-    if (it != State.VarLabels.end()) return it->second;
-    std::string name = "_v" + std::to_string(State.VarCount++);
-    State.VarLabels[v] = name;
-    State.VarDecls.push_back(name + " dw 0");
-    return name;
+    auto it = State.VarOffsets.find(v);
+    if (it != State.VarOffsets.end()) {
+        int off = it->second;
+        if (off == 0) return "[bx]";
+        return "[bx+" + std::to_string(off) + "]";
+    }
+    int off = State.NextVarOffset;
+    State.NextVarOffset += 2;    // 16-bit variables
+    State.VarOffsets[v] = off;
+    if (off == 0) return "[bx]";
+    return "[bx+" + std::to_string(off) + "]";
 }
 
 std::string CodeGen::assignReg(Value *v) {
@@ -127,7 +133,6 @@ MachineModule CodeGen::generate(Module &mod) {
         State = FuncState();
         State.MF.Name = fn->getName();
         generateFunction(*fn);
-        State.MF.VarDecls = std::move(State.VarDecls);
         mm.Functions.push_back(State.MF);
     }
 
@@ -336,17 +341,10 @@ std::string CodeGen::emitAssembly(const MachineModule &mm) {
 
     for (auto &fn : mm.Functions) {
         asmOut << "; Function: " << fn.Name << "\n";
-
-        // Emit variable declarations before the function
-        if (!fn.VarDecls.empty()) {
-            for (auto &decl : fn.VarDecls) {
-                asmOut << decl << "\n";
-            }
-            asmOut << "\n";
-        }
-
-        // Function entry
         asmOut << fn.Name << ":\n";
+
+        // Initialize BX as base pointer for variables
+        asmOut << "    mov  bx, 8000h\n";
 
         for (auto &bb : fn.Blocks) {
             bool isEntry = (&bb == &fn.Blocks.front());

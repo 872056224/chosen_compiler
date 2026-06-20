@@ -26,10 +26,9 @@ private:
     // State per function
     struct FuncState {
         MachineFunction MF;
-        std::map<Value*, std::string> VRegNames; // IR Value → physical reg
-        std::map<Value*, std::string> VarLabels; // Alloca → data label
-        std::vector<std::string> VarDecls;        // "label dw 0" lines
-        int VarCount = 0;
+        std::map<Value*, std::string> VRegNames;  // IR Value → physical reg
+        std::map<Value*, int> VarOffsets;          // Alloca → BX offset
+        int NextVarOffset = 0;
         std::map<BasicBlock*, std::string> BlockLabels;
     };
 
