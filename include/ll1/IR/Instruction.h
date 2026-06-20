@@ -18,6 +18,7 @@ public:
         And, Or, Xor,
         ICmp,
         Alloca, Load, Store,
+        ArrayLoad, ArrayStore,
         Call, Phi,
         SExt, ZExt, Trunc,
     };
@@ -79,9 +80,14 @@ class AllocaInst : public Instruction {
 public:
     AllocaInst(Type *allocatedType, const std::string &name = "");
     Type *getAllocatedType() const { return AllocatedTy; }
+    void setArraySize(int size) { ArraySize = size; IsArray = true; }
+    int getArraySize() const { return ArraySize; }
+    bool isArrayAlloca() const { return IsArray; }
     static bool classof(const Value *v);
 private:
     Type *AllocatedTy;
+    int ArraySize = 0;
+    bool IsArray = false;
 };
 
 class LoadInst : public Instruction {
@@ -96,6 +102,23 @@ public:
     StoreInst(Value *val, Value *ptr);
     Value *getValue() const { return getOperand(0); }
     Value *getPointer() const { return getOperand(1); }
+    static bool classof(const Value *v);
+};
+
+class ArrayLoadInst : public Instruction {
+public:
+    ArrayLoadInst(Type *ty, Value *baseAlloca, Value *index, const std::string &name = "");
+    Value *getBase() const { return getOperand(0); }
+    Value *getIndex() const { return getOperand(1); }
+    static bool classof(const Value *v);
+};
+
+class ArrayStoreInst : public Instruction {
+public:
+    ArrayStoreInst(Value *val, Value *baseAlloca, Value *index);
+    Value *getValue() const { return getOperand(0); }
+    Value *getBase() const { return getOperand(1); }
+    Value *getIndex() const { return getOperand(2); }
     static bool classof(const Value *v);
 };
 

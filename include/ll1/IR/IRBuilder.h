@@ -41,6 +41,10 @@ public:
     LoadInst *CreateLoad(Type *ty, Value *ptr, const std::string &name = "");
     StoreInst *CreateStore(Value *val, Value *ptr);
 
+    // Array access
+    ArrayLoadInst *CreateArrayLoad(Type *ty, Value *base, Value *index, const std::string &name = "");
+    ArrayStoreInst *CreateArrayStore(Value *val, Value *base, Value *index);
+
     // Control flow
     RetInst *CreateRetVoid();
     RetInst *CreateRet(Value *v);

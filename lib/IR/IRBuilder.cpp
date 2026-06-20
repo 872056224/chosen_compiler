@@ -100,6 +100,14 @@ CallInst *IRBuilder::CreateCall(Function *callee, const std::vector<Value*> &arg
     return call;
 }
 
+ArrayLoadInst *IRBuilder::CreateArrayLoad(Type *ty, Value *base, Value *index, const std::string &name) {
+    return insert<ArrayLoadInst>(this, ty, base, index, name);
+}
+
+ArrayStoreInst *IRBuilder::CreateArrayStore(Value *val, Value *base, Value *index) {
+    return insert<ArrayStoreInst>(this, val, base, index);
+}
+
 Value *IRBuilder::CreateSExt(Value *v, Type *destTy, const std::string &name) {
     return insert<Instruction>(this, Instruction::Opcode::SExt, destTy, name);
 }

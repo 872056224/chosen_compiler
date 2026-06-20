@@ -17,6 +17,13 @@ std::string CodeGen::allocTempReg() {
     return r;
 }
 
+int CodeGen::getArrayBaseOffset(Value *base) {
+    auto it = State.VarOffsets.find(base);
+    if (it != State.VarOffsets.end()) return it->second;
+    // If not yet allocated (shouldn't happen), return 0
+    return 0;
+}
+
 // Each alloca gets a [bx+offset] memory operand.
 // BX is the dedicated base pointer, initialized at function entry.
 std::string CodeGen::varLabel(Value *v) {
@@ -165,8 +172,11 @@ void CodeGen::generateInst(Instruction &inst) {
     switch (inst.getOpcode()) {
 
     case Instruction::Opcode::Alloca: {
-        varLabel(&inst);    // register variable label
-        assignReg(&inst);
+        auto *ai = dynamic_cast<AllocaInst*>(&inst);
+        int slotSize = (ai && ai->isArrayAlloca()) ? (ai->getArraySize() * 2) : 2;
+        int off = State.NextVarOffset;
+        State.NextVarOffset += slotSize;
+        State.VarOffsets[&inst] = off;
         break;
     }
 
@@ -326,17 +336,42 @@ void CodeGen::generateInst(Instruction &inst) {
     case Instruction::Opcode::Call: {
         auto *ci = static_cast<CallInst*>(&inst);
         if (auto *fn = dynamic_cast<Function*>(ci->getOperand(0))) {
-            // Built-in: __print(value) — pass argument in AX
             if (fn->getName() == "__print" && ci->getNumOperands() > 1) {
                 std::string arg = loadToReg(ci->getOperand(1));
                 if (arg != "ax") emit("mov", "ax, " + arg);
             }
             emit("call", fn->getName());
-            // Built-in: __read() returns in AX, store to result register
             if (fn->getName() == "__read") {
                 State.VRegNames[&inst] = "ax";
             }
         }
+        break;
+    }
+
+    case Instruction::Opcode::ArrayLoad: {
+        auto *al = static_cast<ArrayLoadInst*>(&inst);
+        int baseOff = getArrayBaseOffset(al->getBase());
+        // Index: use SI directly (avoids temp reg conflicts)
+        std::string idxSrc = getOperand(al->getIndex());
+        emit("mov", "si, " + idxSrc);
+        emit("shl", "si, 1");
+        if (baseOff > 0) emit("add", "si, " + std::to_string(baseOff));
+        std::string r = allocTempReg();
+        emit("mov", r + ", [bx+si]");
+        State.VRegNames[&inst] = r;
+        break;
+    }
+
+    case Instruction::Opcode::ArrayStore: {
+        auto *as = static_cast<ArrayStoreInst*>(&inst);
+        int baseOff = getArrayBaseOffset(as->getBase());
+        // Load value first, THEN compute index in SI
+        std::string valReg = loadToReg(as->getValue());
+        std::string idxSrc = getOperand(as->getIndex());
+        emit("mov", "si, " + idxSrc);
+        emit("shl", "si, 1");
+        if (baseOff > 0) emit("add", "si, " + std::to_string(baseOff));
+        emit("mov", "[bx+si], " + valReg);
         break;
     }
 

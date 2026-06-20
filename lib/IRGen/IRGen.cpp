@@ -186,16 +186,9 @@ void IRGen::genVarDecl(VarDecl &decl) {
     Type *ty = mapType(decl.getType());
 
     if (decl.isArray()) {
-        // Array: allocate size * elementSize bytes, store as alloca
-        // For IR simplicity: treat as a single alloca of elementSize*count bytes
-        int totalBytes = decl.getArraySize() * 2; // i16 = 2 bytes
         auto *alloca = Builder->CreateAlloca(ty, decl.getName());
-        // Store array size as metadata (simplified: use a separate alloca for size)
-        // For MVP, just remember the array base + size
+        alloca->setArraySize(decl.getArraySize());
         NamedValues[decl.getName()] = alloca;
-        NamedValues[decl.getName() + "_size"] = Builder->CreateAlloca(ty, decl.getName() + "_size");
-        Builder->CreateStore(Builder->getInt16(decl.getArraySize()),
-                           NamedValues[decl.getName() + "_size"]);
         return;
     }
 
@@ -240,15 +233,26 @@ Value *IRGen::genExpr(Expr &expr) {
 Value *IRGen::genBinaryExpr(BinaryExpr &expr) {
     auto op = expr.getOp();
 
-    // Assignment: store RHS to LHS (LHS must be VarExpr)
+    // Assignment: store RHS to LHS
     if (op == BinaryExpr::Op::Assign) {
-        auto *var = dynamic_cast<VarExpr*>(expr.getLHS());
-        if (!var) return Builder->getInt16(0);
-        auto *alloca = NamedValues[var->getName()];
-        if (!alloca) return Builder->getInt16(0);
-        auto *rhs = genExpr(*expr.getRHS());
-        Builder->CreateStore(rhs, alloca);
-        return rhs;
+        // Scalar: x = val
+        if (auto *var = dynamic_cast<VarExpr*>(expr.getLHS())) {
+            auto *alloca = NamedValues[var->getName()];
+            if (!alloca) return Builder->getInt16(0);
+            auto *rhs = genExpr(*expr.getRHS());
+            Builder->CreateStore(rhs, alloca);
+            return rhs;
+        }
+        // Array: a[i] = val
+        if (auto *arr = dynamic_cast<ArraySubscriptExpr*>(expr.getLHS())) {
+            auto *base = NamedValues[arr->getName()];
+            if (!base) return Builder->getInt16(0);
+            auto *index = genExpr(*arr->getIndex());
+            auto *rhs = genExpr(*expr.getRHS());
+            Builder->CreateArrayStore(rhs, base, index);
+            return rhs;
+        }
+        return Builder->getInt16(0);
     }
 
     // Logical operators: short-circuit evaluation (simplified for MVP)
@@ -308,18 +312,12 @@ Value *IRGen::genBoolLiteral(BoolLiteral &lit) {
 }
 
 Value *IRGen::genArraySubscript(ArraySubscriptExpr &expr) {
-    // a[i]: compute element address = array_base + index * element_size
     auto *baseAlloca = NamedValues[expr.getName()];
     if (!baseAlloca) return Builder->getInt16(0);
 
     auto *indexVal = genExpr(*expr.getIndex());
-    // Multiply index by 2 (i16 = 2 bytes)
-    auto *offset = Builder->CreateMul(indexVal, Builder->getInt16(2), "arr_off");
-    // For MVP: store computed offset as virtual value, CodeGen will resolve
-    // Return the loaded value from base + offset
-    // Use GEP-like computation: load from base + offset
-    (void)baseAlloca; // CodeGen will handle the actual addressing
-    return offset;
+    // ArrayLoad: loads baseAlloca[indexVal]
+    return Builder->CreateArrayLoad(Ctx.getInt16Ty(), baseAlloca, indexVal, "arr_val");
 }
 
 Value *IRGen::genReadExpr() {

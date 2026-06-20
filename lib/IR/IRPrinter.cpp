@@ -225,6 +225,23 @@ std::string IRPrinter::printInstruction(const Instruction &inst, PrintState &s) 
         break;
     }
 
+    case Instruction::Opcode::ArrayLoad: {
+        auto *al = static_cast<const ArrayLoadInst*>(&inst);
+        out << "arrayload " << printType(inst.getType()) << " "
+            << printOperand(al->getBase(), s) << ", "
+            << printOperand(al->getIndex(), s);
+        break;
+    }
+
+    case Instruction::Opcode::ArrayStore: {
+        auto *as = static_cast<const ArrayStoreInst*>(&inst);
+        out << "arraystore " << printType(as->getValue()->getType()) << " "
+            << printOperand(as->getValue(), s) << ", "
+            << printOperand(as->getBase(), s) << ", "
+            << printOperand(as->getIndex(), s);
+        break;
+    }
+
     case Instruction::Opcode::SExt:
     case Instruction::Opcode::ZExt:
     case Instruction::Opcode::Trunc: {

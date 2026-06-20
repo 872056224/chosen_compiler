@@ -114,6 +114,34 @@ bool StoreInst::classof(const Value *v) {
     return I && I->getOpcode() == Opcode::Store;
 }
 
+// ArrayLoadInst
+ArrayLoadInst::ArrayLoadInst(Type *ty, Value *baseAlloca, Value *index, const std::string &name)
+    : Instruction(Opcode::ArrayLoad, ty, name) {
+    Operands.push_back(nullptr);
+    Operands.push_back(nullptr);
+    setOperand(0, baseAlloca);
+    setOperand(1, index);
+}
+bool ArrayLoadInst::classof(const Value *v) {
+    auto *I = dynamic_cast<const Instruction*>(v);
+    return I && I->getOpcode() == Opcode::ArrayLoad;
+}
+
+// ArrayStoreInst
+ArrayStoreInst::ArrayStoreInst(Value *val, Value *baseAlloca, Value *index)
+    : Instruction(Opcode::ArrayStore, Type::getVoidTy()) {
+    Operands.push_back(nullptr);
+    Operands.push_back(nullptr);
+    Operands.push_back(nullptr);
+    setOperand(0, val);
+    setOperand(1, baseAlloca);
+    setOperand(2, index);
+}
+bool ArrayStoreInst::classof(const Value *v) {
+    auto *I = dynamic_cast<const Instruction*>(v);
+    return I && I->getOpcode() == Opcode::ArrayStore;
+}
+
 // CallInst
 CallInst::CallInst(Function *callee, const std::string &name)
     : Instruction(Opcode::Call, callee->getReturnType(), name) {

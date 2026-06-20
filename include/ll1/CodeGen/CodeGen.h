@@ -44,6 +44,7 @@ private:
     std::string getReg(Value *v);
     std::string loadToReg(Value *v);
     std::string varLabel(Value *v);
+    int getArrayBaseOffset(Value *base);
 
     // Emit helpers
     void emit(const std::string &opcode, const std::string &operands = "", const std::string &comment = "");
