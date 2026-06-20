@@ -141,7 +141,7 @@ MachineModule CodeGen::generate(Module &mod) {
 
 void CodeGen::generateFunction(Function &fn) {
     for (auto &bb : fn.getBasicBlocks()) {
-        std::string label = "." + fn.getName() + "_" + bb->getName();
+        std::string label = fn.getName() + "_" + bb->getName();
         State.BlockLabels[bb.get()] = label;
     }
 
