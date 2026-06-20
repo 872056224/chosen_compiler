@@ -3,6 +3,7 @@
 #include <ll1/Parse/Parser.h>
 #include <ll1/Sema/Sema.h>
 #include <ll1/IRGen/IRGen.h>
+#include <ll1/IR/IRPrinter.h>
 #include <ll1/CodeGen/CodeGen.h>
 #include <sstream>
 #include <fstream>
@@ -12,24 +13,19 @@ namespace ll1 {
 
 Compiler::Compiler() {}
 
-std::string Compiler::compile(const std::string &source) {
-    HasError = false;
-    ErrorMsg.clear();
-
-    // Phase 1: Lex
+// Shared: run frontend + IR generation, return Module (nullptr on error)
+std::unique_ptr<Module> Compiler::runFrontend(const std::string &source) {
     std::istringstream in(source);
     Lexer lexer(in);
 
-    // Phase 2: Parse
     Parser parser(lexer);
     auto prog = parser.parseProgram();
     if (parser.hasError()) {
         HasError = true;
         ErrorMsg = parser.getErrorMsg();
-        return "";
+        return nullptr;
     }
 
-    // Phase 3: Semantic analysis
     DiagnosticEngine diag;
     Sema sema(diag);
     bool ok = sema.analyze(*prog);
@@ -42,19 +38,33 @@ std::string Compiler::compile(const std::string &source) {
             }
         }
         ErrorMsg = ss.str();
-        return "";
+        return nullptr;
     }
 
-    // Phase 4: IR Generation
     IRGen irgen;
-    auto mod = irgen.generate(*prog);
+    return irgen.generate(*prog);
+}
 
-    // Phase 5: Code Generation (8086)
+std::string Compiler::compile(const std::string &source) {
+    HasError = false;
+    ErrorMsg.clear();
+
+    auto mod = runFrontend(source);
+    if (!mod) return "";
+
     CodeGen cg;
     auto mm = cg.generate(*mod);
-    std::string asmOutput = cg.emitAssembly(mm);
+    return cg.emitAssembly(mm);
+}
 
-    return asmOutput;
+std::string Compiler::compileIR(const std::string &source) {
+    HasError = false;
+    ErrorMsg.clear();
+
+    auto mod = runFrontend(source);
+    if (!mod) return "";
+
+    return IRPrinter::print(*mod);
 }
 
 std::string Compiler::compileFile(const std::string &filename) {
@@ -67,6 +77,18 @@ std::string Compiler::compileFile(const std::string &filename) {
     std::string source((std::istreambuf_iterator<char>(file)),
                         std::istreambuf_iterator<char>());
     return compile(source);
+}
+
+std::string Compiler::compileFileIR(const std::string &filename) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        HasError = true;
+        ErrorMsg = "cannot open file: " + filename;
+        return "";
+    }
+    std::string source((std::istreambuf_iterator<char>(file)),
+                        std::istreambuf_iterator<char>());
+    return compileIR(source);
 }
 
 } // namespace ll1

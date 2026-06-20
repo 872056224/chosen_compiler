@@ -7,6 +7,7 @@ add_library(ll1IR OBJECT
     IR/Function.cpp
     IR/Module.cpp
     IR/IRBuilder.cpp
+    IR/IRPrinter.cpp
 )
 target_include_directories(ll1IR PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
