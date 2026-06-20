@@ -114,13 +114,11 @@ std::string CodeGen::loadToReg(Value *v) {
 void CodeGen::emit(const std::string &opcode, const std::string &operands, const std::string &comment) {
     std::string line = "    " + opcode;
     if (!operands.empty()) {
-        line += " ";
-        if (opcode.length() < 4) line += "\t";
+        line += "  ";
         line += operands;
     }
-    if (!comment.empty()) {
-        line += "  ; " + comment;
-    }
+    // No inline comments in output — cleaner for simple emulators
+    (void)comment;
     Out << line << "\n";
 
     // Store raw text for emitAssembly
@@ -357,30 +355,16 @@ void CodeGen::generateInst(Instruction &inst) {
 std::string CodeGen::emitAssembly(const MachineModule &mm) {
     std::ostringstream asmOut;
 
-    if (!mm.DataSection.empty()) {
-        asmOut << ".data\n";
-        for (auto &d : mm.DataSection) {
-            asmOut << d << "\n";
-        }
-    }
-
-    asmOut << ".code\n";
+    // Simple format: labels + instructions, compatible with online emulators.
+    // No .code / proc / endp / end — those are MASM/TASM directives.
     for (auto &fn : mm.Functions) {
-        asmOut << "\n; Function: " << fn.Name << "\n";
-        asmOut << fn.Name << " proc\n";
+        asmOut << "; Function: " << fn.Name << "\n";
 
-        // Prologue: only if not already emitted in TextLines
-        bool hasPrologue = false;
-        for (auto &bb : fn.Blocks) {
-            for (auto &line : bb.TextLines) {
-                if (line.find("push bp") != std::string::npos ||
-                    line.find("mov  bp, sp") != std::string::npos) {
-                    hasPrologue = true;
-                    break;
-                }
-            }
-        }
-        if (!hasPrologue && fn.StackSize > 0) {
+        // Entry label
+        asmOut << fn.Name << ":\n";
+
+        // Prologue
+        if (fn.StackSize > 0) {
             asmOut << "    push bp\n";
             asmOut << "    mov  bp, sp\n";
             asmOut << "    sub  sp, " << fn.StackSize << "\n";
@@ -388,18 +372,17 @@ std::string CodeGen::emitAssembly(const MachineModule &mm) {
 
         for (auto &bb : fn.Blocks) {
             bool isEntry = (&bb == &fn.Blocks.front());
-            if (!isEntry || bb.Label.find("entry") == std::string::npos) {
+            if (!isEntry) {
                 asmOut << bb.Label << ":\n";
             }
             for (auto &line : bb.TextLines) {
                 asmOut << line << "\n";
             }
         }
-
-        asmOut << fn.Name << " endp\n";
+        asmOut << "\n";
     }
 
-    asmOut << "\nend\n";
+    asmOut << "hlt\n";
     return asmOut.str();
 }
 

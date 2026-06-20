@@ -26,7 +26,7 @@ int main() {
         auto asmCode = cg.emitAssembly(mm);
 
         assert(!asmCode.empty());
-        assert(asmCode.find("main proc") != std::string::npos);
+        assert(asmCode.find("main:") != std::string::npos);
         assert(asmCode.find("ret") != std::string::npos);
         assert(asmCode.find("42") != std::string::npos);
         std::cout << "  simple return: OK\n";
