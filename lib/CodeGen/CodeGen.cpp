@@ -326,7 +326,16 @@ void CodeGen::generateInst(Instruction &inst) {
     case Instruction::Opcode::Call: {
         auto *ci = static_cast<CallInst*>(&inst);
         if (auto *fn = dynamic_cast<Function*>(ci->getOperand(0))) {
+            // Built-in: __print(value) — pass argument in AX
+            if (fn->getName() == "__print" && ci->getNumOperands() > 1) {
+                std::string arg = loadToReg(ci->getOperand(1));
+                if (arg != "ax") emit("mov", "ax, " + arg);
+            }
             emit("call", fn->getName());
+            // Built-in: __read() returns in AX, store to result register
+            if (fn->getName() == "__read") {
+                State.VRegNames[&inst] = "ax";
+            }
         }
         break;
     }
@@ -341,6 +350,9 @@ std::string CodeGen::emitAssembly(const MachineModule &mm) {
     std::ostringstream asmOut;
 
     for (auto &fn : mm.Functions) {
+        // Skip built-in runtime functions — emitted separately at bottom
+        if (fn.Name == "__print" || fn.Name == "__read") continue;
+
         asmOut << "; Function: " << fn.Name << "\n";
         asmOut << fn.Name << ":\n";
 
@@ -357,6 +369,77 @@ std::string CodeGen::emitAssembly(const MachineModule &mm) {
             }
         }
         asmOut << "\n";
+    }
+
+    // Runtime helpers (embedded in every output)
+    bool needRuntime = false;
+
+    // Check if any function references __print or __read
+    for (auto &fn : mm.Functions) {
+        for (auto &bb : fn.Blocks) {
+            for (auto &line : bb.TextLines) {
+                if (line.find("__print") != std::string::npos ||
+                    line.find("__read") != std::string::npos) {
+                    needRuntime = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (needRuntime) {
+        asmOut << "\n; --- Runtime: __print (AX = value to print) ---\n";
+        asmOut << "__print:\n";
+        asmOut << "    push bx\n";
+        asmOut << "    push cx\n";
+        asmOut << "    push dx\n";
+        asmOut << "    mov  cx, 0\n";
+        asmOut << "    mov  bx, 10\n";
+        asmOut << "__print_loop:\n";
+        asmOut << "    mov  dx, 0\n";
+        asmOut << "    div  bx\n";
+        asmOut << "    push dx\n";
+        asmOut << "    inc  cx\n";
+        asmOut << "    cmp  ax, 0\n";
+        asmOut << "    jne  __print_loop\n";
+        asmOut << "__print_disp:\n";
+        asmOut << "    pop  dx\n";
+        asmOut << "    add  dl, '0'\n";
+        asmOut << "    mov  ah, 02h\n";
+        asmOut << "    int  21h\n";
+        asmOut << "    loop __print_disp\n";
+        asmOut << "    pop  dx\n";
+        asmOut << "    pop  cx\n";
+        asmOut << "    pop  bx\n";
+        asmOut << "    ret\n";
+
+        asmOut << "\n; --- Runtime: __read (returns in AX) ---\n";
+        asmOut << "__read:\n";
+        asmOut << "    push bx\n";
+        asmOut << "    push cx\n";
+        asmOut << "    push dx\n";
+        asmOut << "    mov  ax, 0\n";
+        asmOut << "    mov  bx, 0\n";
+        asmOut << "__read_loop:\n";
+        asmOut << "    mov  ah, 01h\n";
+        asmOut << "    int  21h\n";
+        asmOut << "    cmp  al, 0Dh\n";
+        asmOut << "    je   __read_done\n";
+        asmOut << "    sub  al, '0'\n";
+        asmOut << "    mov  cl, al\n";
+        asmOut << "    mov  ch, 0\n";
+        asmOut << "    mov  ax, bx\n";
+        asmOut << "    mov  dx, 10\n";
+        asmOut << "    mul  dx\n";
+        asmOut << "    add  ax, cx\n";
+        asmOut << "    mov  bx, ax\n";
+        asmOut << "    jmp  __read_loop\n";
+        asmOut << "__read_done:\n";
+        asmOut << "    mov  ax, bx\n";
+        asmOut << "    pop  dx\n";
+        asmOut << "    pop  cx\n";
+        asmOut << "    pop  bx\n";
+        asmOut << "    ret\n";
     }
 
     asmOut << "hlt\n";

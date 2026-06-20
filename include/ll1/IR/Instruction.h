@@ -102,6 +102,7 @@ public:
 class CallInst : public Instruction {
 public:
     CallInst(Function *callee, const std::string &name = "");
+    void addArg(Value *arg);
     static bool classof(const Value *v);
 };
 

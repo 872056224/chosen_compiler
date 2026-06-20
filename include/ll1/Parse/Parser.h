@@ -48,6 +48,7 @@ private:
     std::unique_ptr<Stmt> parseBreakStmt();
     std::unique_ptr<Stmt> parseContinueStmt();
     std::unique_ptr<ReturnStmt> parseReturnStmt();
+    std::unique_ptr<PrintStmt> parsePrintStmt();
     std::unique_ptr<Stmt> parseExprOrVarDecl();
 
     // Expr parsing (precedence climbing via recursive descent)

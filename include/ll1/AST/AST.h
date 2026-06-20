@@ -26,9 +26,11 @@ public:
         // Stmt
         Block, IfStmt, WhileStmt, ForStmt,
         BreakStmt, ContinueStmt, ReturnStmt,
+        PrintStmt,
         // Expr
         BinaryExpr, UnaryExpr, CallExpr,
         IntegerLiteral, CharLiteral, BoolLiteral, VarExpr,
+        ArraySubscriptExpr, ReadExpr,
     };
 
     ASTNode(Kind k) : NodeKind(k) {}
@@ -89,10 +91,17 @@ public:
     Expr *getInit() const { return Init.get(); }
     bool hasInit() const { return Init != nullptr; }
 
+    // Array support
+    bool isArray() const { return IsArray; }
+    int getArraySize() const { return ArraySize; }
+    void setArray(int size) { IsArray = true; ArraySize = size; }
+
 private:
     BuiltinType Ty;
     std::string Name;
     std::unique_ptr<Expr> Init;
+    bool IsArray = false;
+    int ArraySize = 0;
 };
 
 class Block : public Stmt {
@@ -268,6 +277,37 @@ public:
 private:
     std::string Name;
     Decl *DeclRef = nullptr;
+};
+
+// ====== Array subscript: a[i] ======
+class ArraySubscriptExpr : public Expr {
+public:
+    ArraySubscriptExpr(std::string name, std::unique_ptr<Expr> index)
+        : Expr(Kind::ArraySubscriptExpr), Name(std::move(name)), Index(std::move(index)) {}
+
+    const std::string &getName() const { return Name; }
+    Expr *getIndex() const { return Index.get(); }
+
+private:
+    std::string Name;
+    std::unique_ptr<Expr> Index;
+};
+
+// ====== I/O nodes ======
+class PrintStmt : public Stmt {
+public:
+    PrintStmt(std::unique_ptr<Expr> value)
+        : Stmt(Kind::PrintStmt), Value(std::move(value)) {}
+
+    Expr *getValue() const { return Value.get(); }
+
+private:
+    std::unique_ptr<Expr> Value;
+};
+
+class ReadExpr : public Expr {
+public:
+    ReadExpr() : Expr(Kind::ReadExpr) {}
 };
 
 } // namespace ll1

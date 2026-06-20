@@ -100,6 +100,7 @@ void IRGen::genStmt(Stmt &stmt) {
     case ASTNode::Kind::WhileStmt:  genWhileStmt(static_cast<WhileStmt&>(stmt)); break;
     case ASTNode::Kind::ReturnStmt: genReturnStmt(static_cast<ReturnStmt&>(stmt)); break;
     case ASTNode::Kind::VarDecl:    genVarDecl(static_cast<VarDecl&>(stmt)); break;
+    case ASTNode::Kind::PrintStmt:  genPrintStmt(static_cast<PrintStmt&>(stmt)); break;
     case ASTNode::Kind::ForStmt:
     case ASTNode::Kind::BreakStmt:
     case ASTNode::Kind::ContinueStmt:
@@ -183,17 +184,43 @@ void IRGen::genReturnStmt(ReturnStmt &stmt) {
 
 void IRGen::genVarDecl(VarDecl &decl) {
     Type *ty = mapType(decl.getType());
+
+    if (decl.isArray()) {
+        // Array: allocate size * elementSize bytes, store as alloca
+        // For IR simplicity: treat as a single alloca of elementSize*count bytes
+        int totalBytes = decl.getArraySize() * 2; // i16 = 2 bytes
+        auto *alloca = Builder->CreateAlloca(ty, decl.getName());
+        // Store array size as metadata (simplified: use a separate alloca for size)
+        // For MVP, just remember the array base + size
+        NamedValues[decl.getName()] = alloca;
+        NamedValues[decl.getName() + "_size"] = Builder->CreateAlloca(ty, decl.getName() + "_size");
+        Builder->CreateStore(Builder->getInt16(decl.getArraySize()),
+                           NamedValues[decl.getName() + "_size"]);
+        return;
+    }
+
     auto *alloca = Builder->CreateAlloca(ty, decl.getName());
     NamedValues[decl.getName()] = alloca;
 
     if (decl.hasInit()) {
         auto *initVal = genExpr(*decl.getInit());
-        // Extend if needed
         if (initVal->getType() != ty) {
             initVal = Builder->CreateSExt(initVal, ty, decl.getName() + "_ext");
         }
         Builder->CreateStore(initVal, alloca);
     }
+}
+
+void IRGen::genPrintStmt(PrintStmt &stmt) {
+    auto *val = genExpr(*stmt.getValue());
+    // Generate call to __print(val)
+    // Look up or create __print function
+    auto *printFn = M->getFunction("__print");
+    if (!printFn) {
+        printFn = M->createFunction(Ctx.getVoidTy(), "__print");
+        printFn->addArg(std::make_unique<Argument>(Ctx.getInt16Ty(), "val"));
+    }
+    Builder->CreateCall(printFn, {val});
 }
 
 // ====== Expressions ======
@@ -202,6 +229,8 @@ Value *IRGen::genExpr(Expr &expr) {
     case ASTNode::Kind::BinaryExpr:     return genBinaryExpr(static_cast<BinaryExpr&>(expr));
     case ASTNode::Kind::UnaryExpr:      return genUnaryExpr(static_cast<UnaryExpr&>(expr));
     case ASTNode::Kind::VarExpr:        return genVarExpr(static_cast<VarExpr&>(expr));
+    case ASTNode::Kind::ArraySubscriptExpr: return genArraySubscript(static_cast<ArraySubscriptExpr&>(expr));
+    case ASTNode::Kind::ReadExpr:       return genReadExpr();
     case ASTNode::Kind::IntegerLiteral: return genIntegerLiteral(static_cast<IntegerLiteral&>(expr));
     case ASTNode::Kind::BoolLiteral:    return genBoolLiteral(static_cast<BoolLiteral&>(expr));
     default: return Builder->getInt16(0);
@@ -276,6 +305,29 @@ Value *IRGen::genIntegerLiteral(IntegerLiteral &lit) {
 
 Value *IRGen::genBoolLiteral(BoolLiteral &lit) {
     return Builder->getInt16(lit.getValue() ? 1 : 0);
+}
+
+Value *IRGen::genArraySubscript(ArraySubscriptExpr &expr) {
+    // a[i]: compute element address = array_base + index * element_size
+    auto *baseAlloca = NamedValues[expr.getName()];
+    if (!baseAlloca) return Builder->getInt16(0);
+
+    auto *indexVal = genExpr(*expr.getIndex());
+    // Multiply index by 2 (i16 = 2 bytes)
+    auto *offset = Builder->CreateMul(indexVal, Builder->getInt16(2), "arr_off");
+    // For MVP: store computed offset as virtual value, CodeGen will resolve
+    // Return the loaded value from base + offset
+    // Use GEP-like computation: load from base + offset
+    (void)baseAlloca; // CodeGen will handle the actual addressing
+    return offset;
+}
+
+Value *IRGen::genReadExpr() {
+    auto *readFn = M->getFunction("__read");
+    if (!readFn) {
+        readFn = M->createFunction(Ctx.getInt16Ty(), "__read");
+    }
+    return Builder->CreateCall(readFn, {}, "read_val");
 }
 
 } // namespace ll1

@@ -18,6 +18,7 @@ enum class TokenKind {
     KW_IF, KW_ELSE, KW_WHILE, KW_FOR,
     KW_BREAK, KW_CONTINUE, KW_RETURN,
     KW_FN, KW_TRUE, KW_FALSE,
+    KW_PRINT, KW_READ,
 
     // Operators
     OP_PLUS, OP_MINUS, OP_STAR, OP_SLASH, OP_PERCENT,
@@ -25,7 +26,7 @@ enum class TokenKind {
     OP_AND, OP_OR, OP_NOT, OP_ASSIGN,
 
     // Delimiters
-    LPAREN, RPAREN, LBRACE, RBRACE, SEMI, COMMA,
+    LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, SEMI, COMMA,
 };
 
 struct SourceLocation {

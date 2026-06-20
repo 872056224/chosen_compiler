@@ -1,0 +1,8 @@
+fn int main() {
+    int a = 42;
+    print(a);
+    print(100);
+    int x = read();
+    print(x);
+    return 0;
+}

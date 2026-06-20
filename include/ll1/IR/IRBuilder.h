@@ -50,6 +50,9 @@ public:
     // Phi
     PhiInst *CreatePhi(Type *ty, const std::string &name = "");
 
+    // Call
+    CallInst *CreateCall(Function *callee, const std::vector<Value*> &args, const std::string &name = "");
+
     // Cast
     Value *CreateSExt(Value *v, Type *destTy, const std::string &name = "");
     Value *CreateZExt(Value *v, Type *destTy, const std::string &name = "");

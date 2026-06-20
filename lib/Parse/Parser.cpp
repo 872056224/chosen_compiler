@@ -204,9 +204,29 @@ std::unique_ptr<Expr> Parser::parsePrimary() {
             call->setLoc(loc);
             return call;
         }
+        // Check for array subscript: a[i]
+        if (match(TokenKind::LBRACKET)) {
+            auto index = parseExpr();
+            expect(TokenKind::RBRACKET, "expected ']' after array index");
+            auto arr = std::make_unique<ArraySubscriptExpr>(name, std::move(index));
+            arr->setLoc(loc);
+            return arr;
+        }
+
         auto var = std::make_unique<VarExpr>(name);
         var->setLoc(loc);
         return var;
+    }
+
+    // read()
+    if (check(TokenKind::KW_READ)) {
+        auto loc = CurTok.Loc;
+        advance();
+        expect(TokenKind::LPAREN, "expected '(' after 'read'");
+        expect(TokenKind::RPAREN, "expected ')'");
+        auto rd = std::make_unique<ReadExpr>();
+        rd->setLoc(loc);
+        return rd;
     }
 
     // number
@@ -264,6 +284,7 @@ std::unique_ptr<Stmt> Parser::parseStmt() {
     case TokenKind::KW_BREAK:  return parseBreakStmt();
     case TokenKind::KW_CONTINUE: return parseContinueStmt();
     case TokenKind::KW_RETURN: return parseReturnStmt();
+    case TokenKind::KW_PRINT:  return parsePrintStmt();
     case TokenKind::LBRACE:    return parseBlock();
     case TokenKind::SEMI:      advance(); return std::make_unique<Block>(); // empty stmt
 
@@ -384,6 +405,18 @@ std::unique_ptr<VarDecl> Parser::parseVarDecl() {
     auto loc = CurTok.Loc;
     BuiltinType ty = parseType();
     Token nameTok = expect(TokenKind::TOK_IDENT, "expected identifier");
+
+    // Array declaration: int a[10];
+    if (match(TokenKind::LBRACKET)) {
+        Token sizeTok = expect(TokenKind::TOK_NUMBER, "expected array size");
+        expect(TokenKind::RBRACKET, "expected ']' after array size");
+        expect(TokenKind::SEMI, "expected ';' after array declaration");
+        auto decl = std::make_unique<VarDecl>(ty, nameTok.Lexeme);
+        decl->setArray(sizeTok.IntValue);
+        decl->setLoc(loc);
+        return decl;
+    }
+
     std::unique_ptr<Expr> init = nullptr;
     if (match(TokenKind::OP_ASSIGN)) {
         init = parseExpr();
@@ -392,6 +425,18 @@ std::unique_ptr<VarDecl> Parser::parseVarDecl() {
     auto decl = std::make_unique<VarDecl>(ty, nameTok.Lexeme, std::move(init));
     decl->setLoc(loc);
     return decl;
+}
+
+std::unique_ptr<PrintStmt> Parser::parsePrintStmt() {
+    auto loc = CurTok.Loc;
+    expect(TokenKind::KW_PRINT, "expected 'print'");
+    expect(TokenKind::LPAREN, "expected '(' after 'print'");
+    auto val = parseExpr();
+    expect(TokenKind::RPAREN, "expected ')' after print argument");
+    expect(TokenKind::SEMI, "expected ';'");
+    auto stmt = std::make_unique<PrintStmt>(std::move(val));
+    stmt->setLoc(loc);
+    return stmt;
 }
 
 std::unique_ptr<FuncDecl> Parser::parseFuncDef() {

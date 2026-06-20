@@ -14,11 +14,12 @@ static const std::unordered_map<std::string, TokenKind> Keywords = {
     {"break", TokenKind::KW_BREAK}, {"continue", TokenKind::KW_CONTINUE},
     {"return", TokenKind::KW_RETURN}, {"fn", TokenKind::KW_FN},
     {"true", TokenKind::KW_TRUE}, {"false", TokenKind::KW_FALSE},
+    {"print", TokenKind::KW_PRINT}, {"read", TokenKind::KW_READ},
 };
 
 // ---- Token helpers ----
 bool Token::isKeyword() const {
-    return Kind >= TokenKind::KW_INT && Kind <= TokenKind::KW_FALSE;
+    return Kind >= TokenKind::KW_INT && Kind <= TokenKind::KW_READ;
 }
 bool Token::isOperator() const {
     return Kind >= TokenKind::OP_PLUS && Kind <= TokenKind::OP_ASSIGN;
@@ -48,6 +49,10 @@ const char *tokenKindName(TokenKind kind) {
     case TokenKind::KW_FN: return "fn";
     case TokenKind::KW_TRUE: return "true";
     case TokenKind::KW_FALSE: return "false";
+    case TokenKind::KW_PRINT: return "print";
+    case TokenKind::KW_READ: return "read";
+    case TokenKind::LBRACKET: return "[";
+    case TokenKind::RBRACKET: return "]";
     case TokenKind::OP_PLUS: return "+";
     case TokenKind::OP_MINUS: return "-";
     case TokenKind::OP_STAR: return "*";
@@ -161,6 +166,8 @@ Token Lexer::readOperator() {
     case ')': return makeToken(TokenKind::RPAREN, ")");
     case '{': return makeToken(TokenKind::LBRACE, "{");
     case '}': return makeToken(TokenKind::RBRACE, "}");
+    case '[': return makeToken(TokenKind::LBRACKET, "[");
+    case ']': return makeToken(TokenKind::RBRACKET, "]");
     case ';': return makeToken(TokenKind::SEMI, ";");
     case ',': return makeToken(TokenKind::COMMA, ",");
 

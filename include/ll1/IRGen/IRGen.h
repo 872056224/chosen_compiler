@@ -37,11 +37,14 @@ private:
     void genWhileStmt(WhileStmt &stmt);
     void genReturnStmt(ReturnStmt &stmt);
     void genVarDecl(VarDecl &decl);
+    void genPrintStmt(PrintStmt &stmt);
 
     Value *genExpr(Expr &expr);
     Value *genBinaryExpr(BinaryExpr &expr);
     Value *genUnaryExpr(UnaryExpr &expr);
     Value *genVarExpr(VarExpr &expr);
+    Value *genArraySubscript(ArraySubscriptExpr &expr);
+    Value *genReadExpr();
     Value *genIntegerLiteral(IntegerLiteral &lit);
     Value *genBoolLiteral(BoolLiteral &lit);
 

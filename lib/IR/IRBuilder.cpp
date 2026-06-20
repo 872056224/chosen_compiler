@@ -92,6 +92,14 @@ PhiInst *IRBuilder::CreatePhi(Type *ty, const std::string &name) {
     return insert<PhiInst>(this, ty, name);
 }
 
+CallInst *IRBuilder::CreateCall(Function *callee, const std::vector<Value*> &args, const std::string &name) {
+    auto *call = insert<CallInst>(this, callee, name);
+    for (auto *arg : args) {
+        call->addArg(arg);
+    }
+    return call;
+}
+
 Value *IRBuilder::CreateSExt(Value *v, Type *destTy, const std::string &name) {
     return insert<Instruction>(this, Instruction::Opcode::SExt, destTy, name);
 }

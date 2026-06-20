@@ -1,0 +1,5 @@
+fn int main() {
+    int x = read();
+    print(x);
+    return 0;
+}

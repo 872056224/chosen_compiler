@@ -57,6 +57,7 @@ private:
     void checkForStmt(ForStmt &stmt);
     void checkReturnStmt(ReturnStmt &stmt);
     void checkVarDecl(VarDecl &decl);
+    void checkPrintStmt(PrintStmt &stmt);
 
     // Expression type checking
     BuiltinType checkExpr(Expr &expr);
@@ -66,6 +67,7 @@ private:
     BuiltinType checkVarExpr(VarExpr &expr);
     BuiltinType checkIntegerLiteral(IntegerLiteral &lit);
     BuiltinType checkBoolLiteral(BoolLiteral &lit);
+    BuiltinType checkArraySubscript(ArraySubscriptExpr &expr);
 
     // Type compatibility
     bool isCompatible(BuiltinType from, BuiltinType to) const;

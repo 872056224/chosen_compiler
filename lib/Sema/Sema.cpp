@@ -106,6 +106,8 @@ void Sema::checkStmt(Stmt &stmt) {
         checkReturnStmt(static_cast<ReturnStmt&>(stmt)); break;
     case ASTNode::Kind::VarDecl:
         checkVarDecl(static_cast<VarDecl&>(stmt)); break;
+    case ASTNode::Kind::PrintStmt:
+        checkPrintStmt(static_cast<PrintStmt&>(stmt)); break;
     case ASTNode::Kind::BreakStmt:
         if (!inLoop) Diags.report(stmt.getLoc(), Diagnostic::Error, "'break' outside of loop");
         break;
@@ -196,12 +198,21 @@ void Sema::checkVarDecl(VarDecl &decl) {
     sym.Name = decl.getName();
     sym.Ty = decl.getType();
     sym.Node = &decl;
+    sym.IsArray = decl.isArray();
+    sym.ArraySize = decl.getArraySize();
+    if (decl.isArray() && decl.getArraySize() <= 0) {
+        Diags.report(decl.getLoc(), Diagnostic::Error,
+            "array size must be positive");
+    }
     if (!SymTable.declare(sym)) {
         Diags.report(decl.getLoc(), Diagnostic::Error,
             "redefinition of '" + decl.getName() + "'");
         return;
     }
-    if (decl.hasInit()) {
+    if (decl.hasInit() && decl.isArray()) {
+        Diags.report(decl.getLoc(), Diagnostic::Error,
+            "array '" + decl.getName() + "' cannot have initializer");
+    } else if (decl.hasInit()) {
         BuiltinType initTy = checkExpr(*decl.getInit());
         if (!isCompatible(initTy, decl.getType())) {
             Diags.report(decl.getLoc(), Diagnostic::Error,
@@ -210,6 +221,34 @@ void Sema::checkVarDecl(VarDecl &decl) {
                 " but got " + typeName(initTy));
         }
     }
+}
+
+void Sema::checkPrintStmt(PrintStmt &stmt) {
+    BuiltinType valTy = checkExpr(*stmt.getValue());
+    if (valTy != BuiltinType::Int && valTy != BuiltinType::Char) {
+        Diags.report(stmt.getLoc(), Diagnostic::Error,
+            "print requires int or char argument");
+    }
+}
+
+BuiltinType Sema::checkArraySubscript(ArraySubscriptExpr &expr) {
+    const Symbol *sym = SymTable.lookup(expr.getName());
+    if (!sym) {
+        Diags.report(expr.getLoc(), Diagnostic::Error,
+            "use of undeclared array '" + expr.getName() + "'");
+        return BuiltinType::Int;
+    }
+    if (!sym->IsArray) {
+        Diags.report(expr.getLoc(), Diagnostic::Error,
+            "'" + expr.getName() + "' is not an array");
+        return BuiltinType::Int;
+    }
+    BuiltinType indexTy = checkExpr(*expr.getIndex());
+    if (indexTy != BuiltinType::Int) {
+        Diags.report(expr.getLoc(), Diagnostic::Error,
+            "array index must be int");
+    }
+    return sym->Ty;
 }
 
 // ====== Expression type checking ======
@@ -222,6 +261,8 @@ BuiltinType Sema::checkExpr(Expr &expr) {
     case ASTNode::Kind::IntegerLiteral: return checkIntegerLiteral(static_cast<IntegerLiteral&>(expr));
     case ASTNode::Kind::BoolLiteral: return checkBoolLiteral(static_cast<BoolLiteral&>(expr));
     case ASTNode::Kind::CharLiteral: return BuiltinType::Char;
+    case ASTNode::Kind::ArraySubscriptExpr: return checkArraySubscript(static_cast<ArraySubscriptExpr&>(expr));
+    case ASTNode::Kind::ReadExpr: return BuiltinType::Int;
     default: return BuiltinType::Void;
     }
 }

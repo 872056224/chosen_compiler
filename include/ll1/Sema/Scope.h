@@ -17,6 +17,8 @@ struct Symbol {
     const ASTNode *Node = nullptr;  // Points to VarDecl or FuncDecl
     bool IsFunction = false;
     bool IsParameter = false;
+    bool IsArray = false;
+    int ArraySize = 0;
 };
 
 class Scope {
