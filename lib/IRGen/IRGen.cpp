@@ -134,7 +134,7 @@ void IRGen::genIfStmt(IfStmt &stmt) {
     // Then block
     Builder->setInsertPoint(thenBB);
     genStmt(*stmt.getThen());
-    if (!thenBB->getTerminator()) {
+    if (!Builder->getInsertBlock()->getTerminator()) {
         Builder->CreateBr(mergeBB);
     }
 
@@ -142,7 +142,7 @@ void IRGen::genIfStmt(IfStmt &stmt) {
     if (elseBB) {
         Builder->setInsertPoint(elseBB);
         genStmt(*stmt.getElse());
-        if (!elseBB->getTerminator()) {
+        if (!Builder->getInsertBlock()->getTerminator()) {
             Builder->CreateBr(mergeBB);
         }
     }
@@ -166,7 +166,7 @@ void IRGen::genWhileStmt(WhileStmt &stmt) {
     // Body block
     Builder->setInsertPoint(bodyBB);
     genStmt(*stmt.getBody());
-    if (!bodyBB->getTerminator()) {
+    if (!Builder->getInsertBlock()->getTerminator()) {
         Builder->CreateBr(condBB);
     }
 
