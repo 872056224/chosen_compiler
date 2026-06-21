@@ -1025,16 +1025,16 @@ Step 9: Opt (PassManager + 各 Pass)
 
 ## 14. MVP 实现结果
 
-> 实现日期: 2026-06-19
+> 实现日期: 2026-06-19（初版），2026-06-21（更新）
 
 ### 项目统计
 
 | 指标 | 数值 |
 |------|------|
-| 源文件数 (.h/.cpp) | 48 |
-| 总代码行数 | ~4,330 |
+| 源文件数 (.h/.cpp) | 50 |
+| 总代码行数 | ~5,046 |
 | 单元测试 | 13 (100% passing) |
-| Git commits | 13 |
+| Git commits | 30 |
 | 模块数 | 9 (Lex, Parse, AST, Sema, IR, IRGen, Opt, CodeGen, Driver) |
 
 ### 已实现功能
@@ -1048,9 +1048,12 @@ Step 9: Opt (PassManager + 各 Pass)
 | 4 | Parser (LL(1) 递归下降) | ✅ | 1 |
 | 5 | Sema (Scope + SymbolTable + 类型检查) | ✅ | 1 |
 | 6 | IRGen (AST → LLVM IR) | ✅ | 1 |
-| 7 | CodeGen (IR → 8086 汇编) | ✅ | 1 |
+| 7 | CodeGen (IR → 8086 汇编, [BX+SI] 数组寻址) | ✅ | 1 |
 | 8 | Driver (全管线编排 + CLI) | ✅ | — |
 | 9 | Integration (端到端测试) | ✅ | 1 |
+| 10 | Array (整数数组, ArrayLoad/ArrayStore) | ✅ | — |
+| 11 | I/O (print + read, DOS 中断运行时) | ✅ | — |
+| 12 | IRPrinter (LLVM IR .ll 文本输出) | ✅ | — |
 
 ### 编译管线验证
 
@@ -1114,9 +1117,10 @@ cd build
 ### 待实现 (第二/三版)
 
 - [ ] Mem2Reg / InstCombine / SimplifyCFG / GVN / DCE Pass
-- [ ] 线性扫描寄存器分配（当前用简单轮转 AX/BX/CX/DX）
+- [ ] 线性扫描寄存器分配（当前用简单轮转 AX/CX/CX）
 - [ ] for 循环的 IRGen + CodeGen
 - [ ] break / continue
 - [ ] char / bool 类型的完整 codegen
 - [ ] 函数调用的完整实现（参数传递 + 调用约定）
+- [ ] 多维数组
 - [ ] RISC-V 后端扩展
