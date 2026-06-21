@@ -173,7 +173,8 @@ void CodeGen::generateInst(Instruction &inst) {
 
     case Instruction::Opcode::Alloca: {
         auto *ai = dynamic_cast<AllocaInst*>(&inst);
-        int slotSize = (ai && ai->isArrayAlloca()) ? (ai->getArraySize() * 2) : 2;
+        int elemSize = (ai && ai->getAllocatedType() == Type::getInt8Ty()) ? 1 : 2;
+        int slotSize = (ai && ai->isArrayAlloca()) ? (ai->getArraySize() * elemSize) : elemSize;
         int off = State.NextVarOffset;
         State.NextVarOffset += slotSize;
         State.VarOffsets[&inst] = off;
@@ -203,6 +204,13 @@ void CodeGen::generateInst(Instruction &inst) {
                 srcReg = tmp;
             }
         }
+        bool isByte = (srcVal && srcVal->getType() == Type::getInt8Ty());
+        // Use byte register for i8 stores
+        if (isByte) {
+            if (srcReg == "ax") srcReg = "al";
+            else if (srcReg == "cx") srcReg = "cl";
+            else if (srcReg == "dx") srcReg = "dl";
+        }
         emit("mov", dst + ", " + srcReg);
         break;
     }
@@ -210,8 +218,20 @@ void CodeGen::generateInst(Instruction &inst) {
     case Instruction::Opcode::Load: {
         auto *li = static_cast<LoadInst*>(&inst);
         std::string ptr = getOperand(li->getPointer());
+        bool isByte = (li->getType() == Type::getInt8Ty());
         std::string r = allocTempReg();
-        emit("mov", r + ", " + ptr);
+        if (isByte && r == "ax") {
+            emit("mov", "al, " + ptr);
+            emit("mov", "ah, 0");
+        } else if (isByte && r == "cx") {
+            emit("mov", "cl, " + ptr);
+            emit("mov", "ch, 0");
+        } else if (isByte && r == "dx") {
+            emit("mov", "dl, " + ptr);
+            emit("mov", "dh, 0");
+        } else {
+            emit("mov", r + ", " + ptr);
+        }
         State.VRegNames[&inst] = r;
         break;
     }

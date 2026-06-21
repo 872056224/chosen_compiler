@@ -109,13 +109,19 @@ ArrayStoreInst *IRBuilder::CreateArrayStore(Value *val, Value *base, Value *inde
 }
 
 Value *IRBuilder::CreateSExt(Value *v, Type *destTy, const std::string &name) {
-    return insert<Instruction>(this, Instruction::Opcode::SExt, destTy, name);
+    auto *inst = insert<Instruction>(this, Instruction::Opcode::SExt, destTy, name);
+    inst->addOperand(v);
+    return inst;
 }
 Value *IRBuilder::CreateZExt(Value *v, Type *destTy, const std::string &name) {
-    return insert<Instruction>(this, Instruction::Opcode::ZExt, destTy, name);
+    auto *inst = insert<Instruction>(this, Instruction::Opcode::ZExt, destTy, name);
+    inst->addOperand(v);
+    return inst;
 }
 Value *IRBuilder::CreateTrunc(Value *v, Type *destTy, const std::string &name) {
-    return insert<Instruction>(this, Instruction::Opcode::Trunc, destTy, name);
+    auto *inst = insert<Instruction>(this, Instruction::Opcode::Trunc, destTy, name);
+    inst->addOperand(v);
+    return inst;
 }
 
 } // namespace ll1

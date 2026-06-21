@@ -52,7 +52,7 @@ int main() {
     testFail("int x; int x;", "duplicate global");
     testFail("fn int f() { int x; int x; return 0; }", "duplicate local");
     testFail("fn int f() { return x; }", "undeclared var");
-    testFail("fn char f() { return 42; }", "return type mismatch");
+    testFail("fn char f() { return true; }", "return type mismatch");
     testFail("fn int f() { int x; if (x) { return 0; } return 0; }", "non-bool condition");
 
     std::cout << "All sema tests passed.\n";

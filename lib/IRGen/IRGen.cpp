@@ -101,11 +101,9 @@ void IRGen::genStmt(Stmt &stmt) {
     case ASTNode::Kind::ReturnStmt: genReturnStmt(static_cast<ReturnStmt&>(stmt)); break;
     case ASTNode::Kind::VarDecl:    genVarDecl(static_cast<VarDecl&>(stmt)); break;
     case ASTNode::Kind::PrintStmt:  genPrintStmt(static_cast<PrintStmt&>(stmt)); break;
-    case ASTNode::Kind::ForStmt:
-    case ASTNode::Kind::BreakStmt:
-    case ASTNode::Kind::ContinueStmt:
-        // Not implemented in MVP
-        break;
+    case ASTNode::Kind::ForStmt:    genForStmt(static_cast<ForStmt&>(stmt)); break;
+    case ASTNode::Kind::BreakStmt:  genBreakStmt(); break;
+    case ASTNode::Kind::ContinueStmt: genContinueStmt(); break;
     default:
         // Expression statement
         if (auto *expr = dynamic_cast<Expr*>(&stmt)) {
@@ -163,14 +161,56 @@ void IRGen::genWhileStmt(WhileStmt &stmt) {
     auto *condVal = genExpr(*stmt.getCond());
     Builder->CreateCondBr(condVal, bodyBB, exitBB);
 
-    // Body block
+    // Body block (push loop context for break/continue)
+    LoopStack.push_back({condBB, exitBB});
     Builder->setInsertPoint(bodyBB);
     genStmt(*stmt.getBody());
     if (!Builder->getInsertBlock()->getTerminator()) {
         Builder->CreateBr(condBB);
     }
+    LoopStack.pop_back();
 
     Builder->setInsertPoint(exitBB);
+}
+
+void IRGen::genForStmt(ForStmt &stmt) {
+    // for (init; cond; incr) body  →  init; while (cond) { body; incr; }
+    if (stmt.getInit()) genStmt(*stmt.getInit());
+
+    auto *condBB = CurrentFunc->createBasicBlock("for_cond");
+    auto *bodyBB = CurrentFunc->createBasicBlock("for_body");
+    auto *exitBB = CurrentFunc->createBasicBlock("for_exit");
+
+    Builder->CreateBr(condBB);
+
+    Builder->setInsertPoint(condBB);
+    if (stmt.getCond()) {
+        auto *condVal = genExpr(*stmt.getCond());
+        Builder->CreateCondBr(condVal, bodyBB, exitBB);
+    } else {
+        Builder->CreateBr(bodyBB); // no condition → infinite loop
+    }
+
+    LoopStack.push_back({condBB, exitBB});
+    Builder->setInsertPoint(bodyBB);
+    if (stmt.getBody()) genStmt(*stmt.getBody());
+    if (stmt.getIncr()) genExpr(*stmt.getIncr());
+    if (!Builder->getInsertBlock()->getTerminator()) {
+        Builder->CreateBr(condBB);
+    }
+    LoopStack.pop_back();
+
+    Builder->setInsertPoint(exitBB);
+}
+
+void IRGen::genBreakStmt() {
+    if (LoopStack.empty()) return;
+    Builder->CreateBr(LoopStack.back().ExitBB);
+}
+
+void IRGen::genContinueStmt() {
+    if (LoopStack.empty()) return;
+    Builder->CreateBr(LoopStack.back().CondBB);
 }
 
 void IRGen::genReturnStmt(ReturnStmt &stmt) {

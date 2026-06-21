@@ -16,4 +16,10 @@ void User::setOperand(unsigned i, Value *v) {
     }
 }
 
+void User::addOperand(Value *v) {
+    unsigned idx = Operands.size();
+    Operands.push_back(nullptr);
+    setOperand(idx, v);
+}
+
 } // namespace ll1

@@ -1,0 +1,7 @@
+fn int main() {
+    char c = 65;
+    print(c);
+    c = 66;
+    print(c);
+    return 0;
+}

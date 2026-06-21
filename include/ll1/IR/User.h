@@ -14,6 +14,7 @@ public:
     unsigned getNumOperands() const { return Operands.size(); }
     Value *getOperand(unsigned i) const;
     void setOperand(unsigned i, Value *v);
+    void addOperand(Value *v);
 
 protected:
     std::vector<Value *> Operands;

@@ -148,9 +148,7 @@ CallInst::CallInst(Function *callee, const std::string &name)
     Operands.push_back(callee);
 }
 void CallInst::addArg(Value *arg) {
-    unsigned idx = Operands.size();
-    Operands.push_back(nullptr);
-    setOperand(idx, arg);
+    addOperand(arg);
 }
 bool CallInst::classof(const Value *v) {
     auto *I = dynamic_cast<const Instruction*>(v);

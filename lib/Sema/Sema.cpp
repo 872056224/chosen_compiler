@@ -379,9 +379,9 @@ BuiltinType Sema::checkBoolLiteral(BoolLiteral &lit) {
 
 bool Sema::isCompatible(BuiltinType from, BuiltinType to) const {
     if (from == to) return true;
-    // Implicit conversions
-    if (to == BuiltinType::Int && from == BuiltinType::Char) return true;
-    if (to == BuiltinType::Int && from == BuiltinType::Bool) return true;
+    if (from == BuiltinType::Int && to == BuiltinType::Char) return true; // int → char truncation
+    if (to == BuiltinType::Int && from == BuiltinType::Char) return true; // char → int promotion
+    if (to == BuiltinType::Int && from == BuiltinType::Bool) return true; // bool → int
     return false;
 }
 

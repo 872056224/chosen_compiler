@@ -28,6 +28,10 @@ private:
     // Map variable name to alloca instruction
     std::map<std::string, AllocaInst*> NamedValues;
 
+    // Loop context for break/continue
+    struct LoopContext { BasicBlock *CondBB; BasicBlock *ExitBB; };
+    std::vector<LoopContext> LoopStack;
+
     Type *mapType(BuiltinType t);
 
     void genFuncDecl(FuncDecl &decl);
@@ -35,6 +39,9 @@ private:
     void genBlock(Block &block);
     void genIfStmt(IfStmt &stmt);
     void genWhileStmt(WhileStmt &stmt);
+    void genForStmt(ForStmt &stmt);
+    void genBreakStmt();
+    void genContinueStmt();
     void genReturnStmt(ReturnStmt &stmt);
     void genVarDecl(VarDecl &decl);
     void genPrintStmt(PrintStmt &stmt);
