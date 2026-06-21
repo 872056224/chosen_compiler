@@ -28,6 +28,7 @@ private:
         MachineFunction MF;
         std::map<Value*, std::string> VRegNames;  // IR Value → physical reg
         std::map<Value*, int> VarOffsets;          // Alloca → BX offset
+        std::map<Value*, int> ArgOffsets;          // Argument → BP offset
         int NextVarOffset = 0;
         std::map<BasicBlock*, std::string> BlockLabels;
     };

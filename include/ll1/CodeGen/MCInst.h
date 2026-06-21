@@ -36,6 +36,7 @@ struct MachineBB {
 struct MachineFunction {
     std::string Name;
     std::vector<MachineBB> Blocks;
+    int LocalSize = 0;  // Total bytes of local variables
 };
 
 // Machine module (output)

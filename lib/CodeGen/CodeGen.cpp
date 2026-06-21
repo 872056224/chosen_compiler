@@ -17,6 +17,18 @@ std::string CodeGen::allocTempReg() {
     return r;
 }
 
+std::string CodeGen::memOp(const std::string &base, int offset) {
+    std::ostringstream ss;
+    if (offset == 0) ss << "[" << base << "]";
+    else if (offset > 0) ss << "[" << base << "+" << offset << "]";
+    else ss << "[" << base << offset << "]";
+    return ss.str();
+}
+
+std::string CodeGen::memOpBP(int offset) {
+    return memOp("bp", offset);
+}
+
 int CodeGen::getArrayBaseOffset(Value *base) {
     auto it = State.VarOffsets.find(base);
     if (it != State.VarOffsets.end()) return it->second;
@@ -75,9 +87,18 @@ std::string CodeGen::getOperand(Value *v) {
         return std::to_string(ci->getValue());
     }
 
-    // Alloca → data label (no brackets)
+    // Alloca → [bx+offset] memory operand
     if (dynamic_cast<AllocaInst*>(v)) {
         return varLabel(v);
+    }
+
+    // Argument → [bp+offset] (parameters on stack)
+    if (auto *arg = dynamic_cast<Argument*>(v)) {
+        auto it = State.ArgOffsets.find(arg);
+        if (it != State.ArgOffsets.end()) {
+            return memOpBP(it->second);
+        }
+        return memOpBP(4); // fallback
     }
 
     // BasicBlock → code label
@@ -140,6 +161,7 @@ MachineModule CodeGen::generate(Module &mod) {
         State = FuncState();
         State.MF.Name = fn->getName();
         generateFunction(*fn);
+        State.MF.LocalSize = State.NextVarOffset;  // Total local bytes
         mm.Functions.push_back(State.MF);
     }
 
@@ -147,6 +169,11 @@ MachineModule CodeGen::generate(Module &mod) {
 }
 
 void CodeGen::generateFunction(Function &fn) {
+    // Track argument BP offsets: [bp+4] = arg0, [bp+6] = arg1, ...
+    for (unsigned i = 0; i < fn.getArgCount(); ++i) {
+        State.ArgOffsets[fn.getArg(i)] = 4 + i * 2;
+    }
+
     int labelId = 0;
     for (auto &bb : fn.getBasicBlocks()) {
         std::string label = fn.getName() + "_" + bb->getName() + "_" + std::to_string(labelId++);
@@ -349,6 +376,9 @@ void CodeGen::generateInst(Instruction &inst) {
             std::string val = loadToReg(ri->getReturnValue());
             if (val != "ax") emit("mov", "ax, " + val);
         }
+        // Epilogue
+        emit("mov", "sp, bp");
+        emit("pop", "bp");
         emit("ret", "");
         break;
     }
@@ -356,12 +386,32 @@ void CodeGen::generateInst(Instruction &inst) {
     case Instruction::Opcode::Call: {
         auto *ci = static_cast<CallInst*>(&inst);
         if (auto *fn = dynamic_cast<Function*>(ci->getOperand(0))) {
-            if (fn->getName() == "__print" && ci->getNumOperands() > 1) {
-                std::string arg = loadToReg(ci->getOperand(1));
-                if (arg != "ax") emit("mov", "ax, " + arg);
+            // Built-in: __print(value)
+            if (fn->getName() == "__print") {
+                if (ci->getNumOperands() > 1) {
+                    std::string arg = loadToReg(ci->getOperand(1));
+                    if (arg != "ax") emit("mov", "ax, " + arg);
+                }
+                emit("call", fn->getName());
+                break;
+            }
+            // Built-in: __read()
+            if (fn->getName() == "__read") {
+                emit("call", fn->getName());
+                State.VRegNames[&inst] = "ax";
+                break;
+            }
+            // User function: push args right-to-left, call, caller cleanup
+            int argCount = ci->getNumOperands() - 1;
+            for (int i = argCount; i >= 1; --i) {
+                std::string argReg = loadToReg(ci->getOperand(i));
+                emit("push", argReg);
             }
             emit("call", fn->getName());
-            if (fn->getName() == "__read") {
+            if (argCount > 0) {
+                emit("add", "sp, " + std::to_string(argCount * 2));
+            }
+            if (inst.getType() != Type::getVoidTy()) {
                 State.VRegNames[&inst] = "ax";
             }
         }
@@ -411,8 +461,19 @@ std::string CodeGen::emitAssembly(const MachineModule &mm) {
         asmOut << "; Function: " << fn.Name << "\n";
         asmOut << fn.Name << ":\n";
 
-        // Initialize BX as base pointer for variables
-        asmOut << "    mov  bx, 8000h\n";
+        // Standard stack frame prologue
+        asmOut << "    push bp\n";
+        asmOut << "    mov  bp, sp\n";
+        if (fn.LocalSize > 0) {
+            asmOut << "    sub  sp, " << fn.LocalSize << "\n";
+        }
+        // Set BX to base of local area (for [bx+offset] addressing)
+        if (fn.LocalSize > 0) {
+            asmOut << "    mov  bx, bp\n";
+            asmOut << "    sub  bx, " << fn.LocalSize << "\n";
+        } else {
+            asmOut << "    mov  bx, bp\n";
+        }
 
         for (auto &bb : fn.Blocks) {
             bool isEntry = (&bb == &fn.Blocks.front());
@@ -445,6 +506,7 @@ std::string CodeGen::emitAssembly(const MachineModule &mm) {
     if (needRuntime) {
         asmOut << "\n; --- Runtime: __print (AX = value to print) ---\n";
         asmOut << "__print:\n";
+        asmOut << "    push bp\n";
         asmOut << "    push bx\n";
         asmOut << "    push cx\n";
         asmOut << "    push dx\n";
@@ -469,10 +531,12 @@ std::string CodeGen::emitAssembly(const MachineModule &mm) {
         asmOut << "    pop  dx\n";
         asmOut << "    pop  cx\n";
         asmOut << "    pop  bx\n";
+        asmOut << "    pop  bp\n";
         asmOut << "    ret\n";
 
         asmOut << "\n; --- Runtime: __read (returns in AX) ---\n";
         asmOut << "__read:\n";
+        asmOut << "    push bp\n";
         asmOut << "    push bx\n";
         asmOut << "    push cx\n";
         asmOut << "    push dx\n";
@@ -497,6 +561,7 @@ std::string CodeGen::emitAssembly(const MachineModule &mm) {
         asmOut << "    pop  dx\n";
         asmOut << "    pop  cx\n";
         asmOut << "    pop  bx\n";
+        asmOut << "    pop  bp\n";
         asmOut << "    ret\n";
     }
 

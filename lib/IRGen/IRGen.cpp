@@ -264,6 +264,7 @@ Value *IRGen::genExpr(Expr &expr) {
     case ASTNode::Kind::VarExpr:        return genVarExpr(static_cast<VarExpr&>(expr));
     case ASTNode::Kind::ArraySubscriptExpr: return genArraySubscript(static_cast<ArraySubscriptExpr&>(expr));
     case ASTNode::Kind::ReadExpr:       return genReadExpr();
+    case ASTNode::Kind::CallExpr:       return genCallExpr(static_cast<CallExpr&>(expr));
     case ASTNode::Kind::IntegerLiteral: return genIntegerLiteral(static_cast<IntegerLiteral&>(expr));
     case ASTNode::Kind::BoolLiteral:    return genBoolLiteral(static_cast<BoolLiteral&>(expr));
     default: return Builder->getInt16(0);
@@ -366,6 +367,19 @@ Value *IRGen::genReadExpr() {
         readFn = M->createFunction(Ctx.getInt16Ty(), "__read");
     }
     return Builder->CreateCall(readFn, {}, "read_val");
+}
+
+Value *IRGen::genCallExpr(CallExpr &expr) {
+    auto *callee = M->getFunction(expr.getCallee());
+    if (!callee) {
+        // Forward declaration for yet-undefined functions
+        callee = M->createFunction(Ctx.getInt16Ty(), expr.getCallee());
+    }
+    std::vector<Value*> args;
+    for (auto &arg : expr.getArgs()) {
+        args.push_back(genExpr(*arg));
+    }
+    return Builder->CreateCall(callee, args, "call_tmp");
 }
 
 } // namespace ll1

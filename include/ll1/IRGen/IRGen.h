@@ -52,6 +52,7 @@ private:
     Value *genVarExpr(VarExpr &expr);
     Value *genArraySubscript(ArraySubscriptExpr &expr);
     Value *genReadExpr();
+    Value *genCallExpr(CallExpr &expr);
     Value *genIntegerLiteral(IntegerLiteral &lit);
     Value *genBoolLiteral(BoolLiteral &lit);
 
