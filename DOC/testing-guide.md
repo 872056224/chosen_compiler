@@ -6,9 +6,25 @@
 
 ## 快速运行
 
+### 一键构建（推荐）
+
 ```bash
-cd build
-cmake .. -G "MinGW Makefiles"
+# Windows (MinGW / Visual Studio)
+cd build\windows
+build.bat
+
+# Linux / WSL
+cd build/linux
+chmod +x build.sh && ./build.sh
+```
+
+脚本会自动检测可用的构建工具（MinGW/MSVC/GCC），完成 cmake 配置、编译、测试三步。
+
+### 手动构建
+
+```bash
+cd build/windows            # 或 build/linux
+cmake ../.. -G "MinGW Makefiles"
 cmake --build .
 ctest
 ```
