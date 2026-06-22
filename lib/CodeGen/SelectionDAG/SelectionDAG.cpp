@@ -87,8 +87,7 @@ SDValue SelectionDAG::getNode(unsigned Opc, Type *Ty,
 
 SDValue SelectionDAG::getConstant(int16_t Val, Type *Ty) {
     SDNode *node = newSDNode(ISD::Constant, 0, 1, Ty);
-    // Store the constant value in the node somehow...
-    // For simplicity, we embed it in the result type
+    node->Payload.ConstVal = Val;
     return SDValue(node, 0);
 }
 
@@ -123,6 +122,14 @@ SDValue SelectionDAG::getLoad(Type *Ty, SDValue Chain, SDValue Ptr) {
 
 SDValue SelectionDAG::getStore(SDValue Chain, SDValue Val, SDValue Ptr) {
     return getNode(ISD::STORE, nullptr, {Chain, Val, Ptr});
+}
+
+SDValue SelectionDAG::getIndexedLoad(Type *Ty, SDValue Chain, SDValue Base, SDValue Index) {
+    return getNode(ISD::IndexedLoad, Ty, {Chain, Base, Index});
+}
+
+SDValue SelectionDAG::getIndexedStore(SDValue Chain, SDValue Val, SDValue Base, SDValue Index) {
+    return getNode(ISD::IndexedStore, nullptr, {Chain, Val, Base, Index});
 }
 
 SDValue SelectionDAG::getBr(SDValue Chain, MachineBasicBlock *Dest) {

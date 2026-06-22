@@ -204,20 +204,7 @@ PreservedAnalyses Mem2Reg::run(Function &F, FunctionAnalysisManager &FAM) {
         }
     }
 
-    // Step 3: Remove dead instructions (loads and stores)
-    for (auto *inst : toRemove) {
-        auto *bb = inst->getParent();
-        if (!bb) continue;
-        auto &list = bb->getInstList();
-        for (auto it = list.begin(); it != list.end(); ++it) {
-            if (it->get() == inst) {
-                list.erase(it);
-                break;
-            }
-        }
-    }
-
-    // Step 4: Remove promoted allocas (all loads/stores were replaced)
+    // Step 3: Remove promoted allocas first (uses must still be alive for check)
     unsigned promoted = 0;
     for (auto *alloca : allocas) {
         // Check if any use remains that is NOT in toRemove
@@ -243,6 +230,19 @@ PreservedAnalyses Mem2Reg::run(Function &F, FunctionAnalysisManager &FAM) {
                         break;
                     }
                 }
+            }
+        }
+    }
+
+    // Step 4: Remove dead instructions (loads and stores)
+    for (auto *inst : toRemove) {
+        auto *bb = inst->getParent();
+        if (!bb) continue;
+        auto &list = bb->getInstList();
+        for (auto it = list.begin(); it != list.end(); ++it) {
+            if (it->get() == inst) {
+                list.erase(it);
+                break;
             }
         }
     }

@@ -34,18 +34,19 @@ Register Target8086ISel::getOperandVReg(SDValue Val) {
     SDNode *N = Val.getNode();
     if (!N) return NoRegister;
 
+    // For constants: always create a fresh vreg with MOV to keep live ranges short
+    if (N->getOpcode() == ISD::Constant) {
+        const TargetRegisterClass *RC = &static_cast<const Target8086RegisterInfo&>(TRI).getGR16ABCDClass();
+        Register vreg = DAG.getMRI().createVirtualRegister(RC);
+        MachineInstr &mi = emitMI(MCOpcode::MOV, IsMoveImm);
+        mi.addReg(vreg, true);
+        mi.addImm(N->getConstant());
+        return vreg;
+    }
+
     // If this node already has a vreg assigned, return it
     auto it = NodeVRegs.find(N);
     if (it != NodeVRegs.end()) return it->second;
-
-    // For constants: load into a vreg
-    if (N->getOpcode() == ISD::Constant) {
-        Register vreg = getOrCreateVReg(N);
-        MachineInstr &mi = emitMI(MCOpcode::MOV, IsMoveImm);
-        mi.addReg(vreg, true);
-        mi.addImm(0);  // Constant value — handled specially
-        return vreg;
-    }
 
     // For FrameIndex: compute address into vreg (lea simulation)
     if (N->getOpcode() == ISD::FrameIndex) {
@@ -116,6 +117,8 @@ void Target8086ISel::selectNode(SDNode *N) {
     case ISD::LOAD:      selectLoad(N); break;
     case ISD::STORE:     selectStore(N); break;
     case ISD::FrameIndex: selectFrameIndex(N); break;
+    case ISD::IndexedLoad:  selectIndexedLoad(N); break;
+    case ISD::IndexedStore: selectIndexedStore(N); break;
 
     // Copy
     case ISD::CopyToReg:   selectCopyToReg(N); break;
@@ -154,21 +157,27 @@ void Target8086ISel::selectNode(SDNode *N) {
 // ============================================================
 // Binary arithmetic: ADD, SUB, AND, OR, XOR
 // Pattern: mov dest, src1; add dest, src2 (two-address)
+// When src2 is constant, emit as immediate to avoid register collision
 // ============================================================
 void Target8086ISel::selectBinary(SDNode *N, MCOpcode opc) {
     Register dest = getOperandVReg(SDValue(N, 0));
     Register src1 = getOperandVReg(N->getOperand(0));
-    Register src2 = getOperandVReg(N->getOperand(1));
+    SDValue src2Val = N->getOperand(1);
 
     // MOV dest, src1
     MachineInstr &mov = emitMI(MCOpcode::MOV, IsMoveImm);
     mov.addReg(dest, true);
     mov.addReg(src1);
 
-    // ADD/SUB/etc dest, src2
+    // ADD/SUB/etc dest, src2 — use immediate if constant to avoid reg collision
     MachineInstr &arith = emitMI(opc);
     arith.addReg(dest, true);
-    arith.addReg(src2);
+    if (src2Val.getNode() && src2Val.getOpcode() == ISD::Constant) {
+        arith.addImm(src2Val.getNode()->getConstant());
+    } else {
+        Register src2 = getOperandVReg(src2Val);
+        arith.addReg(src2);
+    }
 }
 
 void Target8086ISel::selectAdd(SDNode *N) { selectBinary(N, MCOpcode::ADD); }
@@ -300,21 +309,36 @@ void Target8086ISel::selectBrCC(SDNode *N) {
 
     // Get predicate + operands from SETCC node
     uint8_t pred = ICmpInst::NE;
-    Register lhs = NoRegister, rhs = NoRegister;
+    Register lhs = NoRegister;
+    SDValue rhsVal;
     bool hasSETCC = false;
+    bool rhsIsImm = false;
+    int16_t rhsImm = 0;
     if (cond.getNode() && cond.getOpcode() == ISD::SETCC) {
         pred = cond.getNode()->Payload.CmpPred;
         // SETCC has two operands: LHS(0), RHS(1)
         if (cond.getNumOperands() >= 2) {
             lhs = getOperandVReg(cond.getOperand(0));
-            rhs = getOperandVReg(cond.getOperand(1));
+            rhsVal = cond.getOperand(1);
             hasSETCC = true;
+            // Check if RHS is constant — emit as immediate to avoid reg collision
+            if (rhsVal.getNode() && rhsVal.getOpcode() == ISD::Constant) {
+                rhsIsImm = true;
+                rhsImm = rhsVal.getNode()->getConstant();
+            }
         }
     }
 
     if (hasSETCC) {
         // Emit: CMP lhs, rhs; Jcc trueBB; JMP falseBB
-        emitMI(MCOpcode::CMP).addReg(lhs).addReg(rhs);
+        MachineInstr &cmpMI = emitMI(MCOpcode::CMP);
+        cmpMI.addReg(lhs);
+        if (rhsIsImm) {
+            cmpMI.addImm(rhsImm);
+        } else {
+            Register rhs = getOperandVReg(rhsVal);
+            cmpMI.addReg(rhs);
+        }
     } else {
         // Generic: CMP condReg, 0
         Register condReg = getOperandVReg(cond);
@@ -418,15 +442,79 @@ void Target8086ISel::selectConstant(SDNode *N) {
 }
 
 // ============================================================
+// IndexedLoad / IndexedStore — [bx+offset+si] addressing for arrays
+// IndexedLoad:  operands (Chain, BaseFI, Index)
+// IndexedStore: operands (Chain, Value, BaseFI, Index)
+// ============================================================
+void Target8086ISel::selectIndexedLoad(SDNode *N) {
+    SDValue baseFI = N->getOperand(1);   // FrameIndex for array base
+    SDValue indexVal = N->getOperand(2);  // Index value
+    Register dest = getOrCreateVReg(N);
+    Register idxReg = getOperandVReg(indexVal);
+
+    // Load index into SI, scale by 2
+    if (idxReg != X86::SI) {
+        emitMI(MCOpcode::MOV, IsMoveImm).addReg(X86::SI, true).addReg(idxReg);
+    }
+    emitMI(MCOpcode::SHL).addReg(X86::SI, true).addImm(1);
+
+    // Indexed load: MOV dest, [FrameIndex, SI]
+    MachineInstr &load = emitMI(MCOpcode::MOV);
+    load.addReg(dest, true);
+    load.addFrameIndex(baseFI.getNode()->getFrameIndex());
+    load.addReg(X86::SI);
+}
+
+void Target8086ISel::selectIndexedStore(SDNode *N) {
+    SDValue val = N->getOperand(1);       // Value to store
+    SDValue baseFI = N->getOperand(2);    // FrameIndex for array base
+    SDValue indexVal = N->getOperand(3);  // Index value
+    Register valReg = getOperandVReg(val);
+    Register idxReg = getOperandVReg(indexVal);
+
+    // Load index into SI, scale by 2
+    if (idxReg != X86::SI) {
+        emitMI(MCOpcode::MOV, IsMoveImm).addReg(X86::SI, true).addReg(idxReg);
+    }
+    emitMI(MCOpcode::SHL).addReg(X86::SI, true).addImm(1);
+
+    // Indexed store: MOV [FrameIndex, SI], valueReg
+    MachineInstr &store = emitMI(MCOpcode::MOV);
+    store.addFrameIndex(baseFI.getNode()->getFrameIndex());
+    store.addReg(X86::SI);
+    store.addReg(valReg);
+}
+
+// ============================================================
 // CALL — cdecl convention: push args right-to-left, call, cleanup
 // Node operands: Chain(0), Arg0(1), Arg1(2), ...
 // ============================================================
 void Target8086ISel::selectCall(SDNode *N) {
     const char *callee = N->getCallee();
     unsigned numArgs = N->getNumOperands() - 1;  // subtract chain operand
+    std::string calleeStr = callee ? std::string(callee) : "";
     int argBytes = numArgs * 2;  // each arg is 16-bit
 
-    // Push args right-to-left
+    // Built-in: __print(value) — arg passed in AX, not on stack
+    if (calleeStr == "__print") {
+        if (numArgs >= 1) {
+            SDValue argVal = N->getOperand(1);  // skip chain
+            Register argReg = getOperandVReg(argVal);
+            emitMI(MCOpcode::MOV, IsMoveImm).addReg(X86::AX, true).addReg(argReg);
+        }
+        MachineInstr &mi = emitMI(MCOpcode::CALL, IsCall);
+        mi.addExternalSymbol(calleeStr);
+        return;
+    }
+
+    // Built-in: __read() — result in AX, no args
+    if (calleeStr == "__read") {
+        MachineInstr &mi = emitMI(MCOpcode::CALL, IsCall);
+        mi.addExternalSymbol(calleeStr);
+        return;
+    }
+
+    // Generic cdecl: push args right-to-left, call, caller cleanup
     for (int i = numArgs - 1; i >= 0; --i) {
         SDValue argVal = N->getOperand(i + 1);  // skip chain
         Register argReg = getOperandVReg(argVal);
@@ -434,16 +522,13 @@ void Target8086ISel::selectCall(SDNode *N) {
         push.addReg(argReg);
     }
 
-    // CALL callee
     MachineInstr &mi = emitMI(MCOpcode::CALL, IsCall);
     if (callee) {
-        mi.addExternalSymbol(std::string(callee));
+        mi.addExternalSymbol(calleeStr);
     }
 
     // Caller cleanup: add sp, N*2
     if (argBytes > 0) {
-        // MOV a temp reg, sp; ADD sp, N — or just ADD sp, imm
-        // 8086 doesn't have ADD sp, imm. Use: add sp, N (assembler handles it)
         MachineInstr &cleanup = emitMI(MCOpcode::ADD);
         cleanup.addReg(X86::SP, true);
         cleanup.addImm(argBytes);

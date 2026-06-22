@@ -73,6 +73,8 @@ const char* SDNode::getOpcodeName() const {
     case ISD::LOAD:          return "LOAD";
     case ISD::STORE:         return "STORE";
     case ISD::FrameIndex:    return "FrameIndex";
+    case ISD::IndexedLoad:   return "IndexedLoad";
+    case ISD::IndexedStore:  return "IndexedStore";
     case ISD::ADD:           return "ADD";
     case ISD::SUB:           return "SUB";
     case ISD::MUL:           return "MUL";

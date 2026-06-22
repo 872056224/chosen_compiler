@@ -64,6 +64,8 @@ std::string Target8086MCInstPrinter::printOperand(const MachineOperand &MO,
             if (off == 0) return "[bx]";
             return "[bx+" + std::to_string(off) + "]";
         }
+        if (fi == 0) return "[bx]";
+        if (fi < 0) return "[bx-" + std::to_string(-fi) + "]";
         return "[bx+" + std::to_string(fi) + "]";
     }
 
@@ -107,6 +109,36 @@ std::string Target8086MCInstPrinter::print(const MachineInstr &MI) {
     case MCOpcode::MOVZX:
     case MCOpcode::MOVSX: {
         std::string mnemonic = (opc == MCOpcode::MOVZX || opc == MCOpcode::MOVSX) ? "mov" : "mov";
+        // 3-operand indexed addressing: (Reg, FI, IndexReg) or (FI, IndexReg, SrcReg)
+        if (MI.getNumOperands() >= 3) {
+            auto &op0 = MI.getOperand(0);
+            auto &op1 = MI.getOperand(1);
+            auto &op2 = MI.getOperand(2);
+            if (op0.getType() == MachineOperandType::MO_Register &&
+                op1.getType() == MachineOperandType::MO_FrameIndex &&
+                op2.getType() == MachineOperandType::MO_Register) {
+                // Indexed load: mov destReg, [bx+offset+si]
+                int fi = op1.getFrameIndex();
+                std::string offset = "";
+                if (MFI && fi >= 0 && fi < MFI->getNumObjects()) {
+                    int off = MFI->getObjectOffset(fi);
+                    offset = (off == 0) ? "" : "+" + std::to_string(off);
+                }
+                return mnemonic + " " + printOperand(op0) + ", [bx" + offset + "+" + getRegName(op2.getReg()) + "]";
+            }
+            if (op0.getType() == MachineOperandType::MO_FrameIndex &&
+                op1.getType() == MachineOperandType::MO_Register &&
+                op2.getType() == MachineOperandType::MO_Register) {
+                // Indexed store: mov [bx+offset+si], srcReg
+                int fi = op0.getFrameIndex();
+                std::string offset = "";
+                if (MFI && fi >= 0 && fi < MFI->getNumObjects()) {
+                    int off = MFI->getObjectOffset(fi);
+                    offset = (off == 0) ? "" : "+" + std::to_string(off);
+                }
+                return mnemonic + " [bx" + offset + "+" + getRegName(op1.getReg()) + "], " + printOperand(op2);
+            }
+        }
         if (MI.getNumOperands() >= 2) {
             std::string dst = printOperand(MI.getOperand(0), false);
             std::string src = printOperand(MI.getOperand(1), true);
@@ -235,7 +267,9 @@ std::string Target8086MCInstPrinter::print(const MachineFunction &MF) {
 // ============================================================
 // Runtime library
 // ============================================================
-void Target8086MCInstPrinter::printRuntime() {
+std::string Target8086MCInstPrinter::printRuntime() {
+    Out.str("");
+    Out.clear();
     Out << "\n"
         << "; --- Runtime: __print (AX = value to print) ---\n"
         << "__print:\n"
@@ -298,6 +332,7 @@ void Target8086MCInstPrinter::printRuntime() {
         << "    pop  bx\n"
         << "    pop  bp\n"
         << "    ret\n";
+    return Out.str();
 }
 
 } // namespace ll1

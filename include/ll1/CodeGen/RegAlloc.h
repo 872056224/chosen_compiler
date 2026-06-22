@@ -52,6 +52,10 @@ private:
     std::unordered_map<Register, int> SpillSlots;
     int NextSpillSlot = 100;  // Above normal local vars
 
+    // Vregs evicted during current allocation step that need spill stores.
+    // Second element is the physreg that held the value at eviction time.
+    std::vector<std::pair<Register, Register>> PendingSpillStores;
+
     // Statistics
     unsigned CopyEliminated = 0;
     unsigned Spills = 0;

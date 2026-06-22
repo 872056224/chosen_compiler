@@ -61,6 +61,8 @@ private:
     void selectLoad(SDNode *N);
     void selectStore(SDNode *N);
     void selectFrameIndex(SDNode *N);
+    void selectIndexedLoad(SDNode *N);
+    void selectIndexedStore(SDNode *N);
 
     // Control flow
     void selectBr(SDNode *N);

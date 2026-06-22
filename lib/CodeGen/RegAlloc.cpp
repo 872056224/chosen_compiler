@@ -79,6 +79,7 @@ void LinearScanRegAlloc::spill(Register PhysReg) {
 
     Register vreg = it->second.VReg;
     getSpillSlot(vreg);  // allocates slot if needed
+    PendingSpillStores.push_back({vreg, PhysReg});  // record physreg for store
     V2P.erase(vreg);
     Occupied.erase(it);
     FreeRegs.push_back(PhysReg);
@@ -93,7 +94,7 @@ int LinearScanRegAlloc::getSpillSlot(Register VReg) {
     auto it = SpillSlots.find(VReg);
     if (it != SpillSlots.end()) return it->second;
     int off = NextSpillSlot;
-    NextSpillSlot += 2;
+    NextSpillSlot -= 2;
     SpillSlots[VReg] = off;
     return off;
 }
@@ -123,7 +124,11 @@ void LinearScanRegAlloc::run(MachineFunction &MF) {
     Occupied.clear();
     V2P.clear();
     SpillSlots.clear();
-    NextSpillSlot = 100;
+    PendingSpillStores.clear();
+    // Use negative offsets so spills go below bx/sp (e.g. [bx-20] = [sp-20]).
+    // Positive offsets start after frame objects and would hit [bx+N] = [bp+N-52]
+    // which overwrites saved BP / return address for N >= 52.
+    NextSpillSlot = -20;
     CopyEliminated = 0;
     Spills = 0;
 
@@ -174,28 +179,21 @@ void LinearScanRegAlloc::run(MachineFunction &MF) {
                 (void)phys;
             }
 
-            // Insert spill stores AFTER this instruction for any vreg that
-            // was defined here but is now spilled (victim of allocation)
-            // Check: if any vreg that we defined now has a spill slot but no V2P entry
-            for (unsigned i = 0; i < mi.getNumOperands(); ++i) {
-                auto &mo = mi.getOperand(i);
-                if (mo.getType() != MachineOperandType::MO_Register) continue;
-                if (!mo.isDef()) continue;
-                Register vreg = mo.getReg();
-                if (!isVirtualRegister(vreg)) continue;
-
+            // Emit spill stores for any vreg evicted during allocation above.
+            // Use the physreg recorded at eviction time (which holds the value).
+            while (!PendingSpillStores.empty()) {
+                auto pending = PendingSpillStores.back();
+                PendingSpillStores.pop_back();
+                Register vreg = pending.first;
+                Register phys = pending.second;
                 auto spillIt = SpillSlots.find(vreg);
-                auto v2pIt = V2P.find(vreg);
-                if (spillIt != SpillSlots.end() && v2pIt == V2P.end()) {
-                    // This vreg has a spill slot but no register — store the result
-                    Register storeReg = allocate(vreg, pos);
-                    MachineInstr storeMI(MCOpcode::MOV);
-                    storeMI.addFrameIndex(spillIt->second);
-                    storeMI.addReg(storeReg);
-                    auto nextIt = std::next(it);
-                    it = insts.insert(nextIt, std::move(storeMI));
-                    pos++;
-                }
+                if (spillIt == SpillSlots.end()) continue;
+                MachineInstr storeMI(MCOpcode::MOV);
+                storeMI.addFrameIndex(spillIt->second);
+                storeMI.addReg(phys);
+                auto nextIt = std::next(it);
+                it = insts.insert(nextIt, std::move(storeMI));
+                pos++;
             }
 
             // Rewrite virtual registers → physical

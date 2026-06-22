@@ -25,7 +25,7 @@ Target8086RegisterInfo::Target8086RegisterInfo() {
     GR8.Allocatable = false; // 8-bit allocatable only for byte ops
 
     Classes = {GR16, GR16_ABCD, GR8};
-    AllocOrder = {X86::AX, X86::CX, X86::DX}; // only 3 allocatable registers
+    AllocOrder = {X86::AX, X86::CX, X86::DX, X86::DI}; // 4 allocatable, DI is free for RA
 }
 
 const char* Target8086RegisterInfo::getName(Register Reg) const {

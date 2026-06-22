@@ -25,7 +25,7 @@ public:
     std::string getRegName(Register Reg) const;
     std::string printPrologue(const MachineFunction &MF);
     std::string printEpilogue(const MachineFunction &MF);
-    void printRuntime();
+    std::string printRuntime();
 
 private:
     const TargetRegisterInfo &TRI;

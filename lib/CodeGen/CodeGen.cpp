@@ -741,7 +741,7 @@ std::string CodeGen::generateNewImpl(Module &mod) {
     }
 
     // Emit runtime helpers
-    Printer->printRuntime();
+    allOutput << Printer->printRuntime();
     allOutput << "hlt\n";
 
     return allOutput.str();

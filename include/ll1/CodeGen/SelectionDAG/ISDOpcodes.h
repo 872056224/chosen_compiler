@@ -36,6 +36,8 @@ enum NodeType : uint16_t {
     LOAD,             // Load from memory (chain, ptr)
     STORE,            // Store to memory (chain, value, ptr)
     FrameIndex,       // Reference to a stack frame slot
+    IndexedLoad,      // Indexed load: (chain, baseFI, index) — lea-like addressing
+    IndexedStore,     // Indexed store: (chain, value, baseFI, index)
 
     // === Arithmetic (binary) ===
     ADD, SUB, MUL,

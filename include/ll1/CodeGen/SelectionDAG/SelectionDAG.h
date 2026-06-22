@@ -77,6 +77,8 @@ public:
     // Memory ops (with chain)
     SDValue getLoad(Type *Ty, SDValue Chain, SDValue Ptr);
     SDValue getStore(SDValue Chain, SDValue Val, SDValue Ptr);
+    SDValue getIndexedLoad(Type *Ty, SDValue Chain, SDValue Base, SDValue Index);
+    SDValue getIndexedStore(SDValue Chain, SDValue Val, SDValue Base, SDValue Index);
 
     // Control flow
     SDValue getBr(SDValue Chain, MachineBasicBlock *Dest);

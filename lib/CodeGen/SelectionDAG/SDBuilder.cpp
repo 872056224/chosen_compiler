@@ -277,11 +277,9 @@ void SelectionDAGBuilder::visitPhi(PhiInst &I) {
 }
 
 void SelectionDAGBuilder::visitArrayLoad(ArrayLoadInst &I) {
-    // Array access: effectively a LOAD with computed address
     SDValue base = getValue(I.getBase());
     SDValue idx = getValue(I.getIndex());
-    // For now: create a generic LOAD — full lowering in Phase 2 ISel
-    SDValue load = DAG.getLoad(I.getType(), Chain, base);
+    SDValue load = DAG.getIndexedLoad(I.getType(), Chain, base, idx);
     Chain = load;
     setValue(&I, load);
 }
@@ -289,7 +287,8 @@ void SelectionDAGBuilder::visitArrayLoad(ArrayLoadInst &I) {
 void SelectionDAGBuilder::visitArrayStore(ArrayStoreInst &I) {
     SDValue val = getValue(I.getValue());
     SDValue base = getValue(I.getBase());
-    Chain = DAG.getStore(Chain, val, base);
+    SDValue idx = getValue(I.getIndex());
+    Chain = DAG.getIndexedStore(Chain, val, base, idx);
 }
 
 // ============================================================

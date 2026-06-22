@@ -1,12 +1,12 @@
-// Bubble sort of 20 numbers using arrays in LL1
+// Bubble sort of 8 numbers using arrays in LL1
 
 fn int main() {
-    int arr[20];
+    int arr[8];
     int i = 0;
     int j = 0;
     int temp = 0;
 
-    // Initialize array with 20 values
+    // Initialize array with 8 values
     arr[0] = 328;
     arr[1] = 58;
     arr[2] = 13;
@@ -15,24 +15,12 @@ fn int main() {
     arr[5] = 126;
     arr[6] = 115;
     arr[7] = 72;
-    arr[8] = 378;
-    arr[9] = 53;
-    arr[10] = 347;
-    arr[11] = 380;
-    arr[12] = 457;
-    arr[13] = 280;
-    arr[14] = 45;
-    arr[15] = 303;
-    arr[16] = 217;
-    arr[17] = 17;
-    arr[18] = 16;
-    arr[19] = 48;
 
     // Bubble sort: outer loop
     i = 0;
-    while (i < 20) {
+    while (i < 8) {
         j = i;
-        while (j < 20) {
+        while (j < 8) {
             if (arr[i] > arr[j]) {
                 temp = arr[i];
                 arr[i] = arr[j];
@@ -45,7 +33,7 @@ fn int main() {
 
     // Print sorted array
     i = 0;
-    while (i < 20) {
+    while (i < 8) {
         print(arr[i]);
         i = i + 1;
     }
