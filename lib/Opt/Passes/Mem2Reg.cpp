@@ -204,7 +204,26 @@ PreservedAnalyses Mem2Reg::run(Function &F, FunctionAnalysisManager &FAM) {
         }
     }
 
-    // Step 3: Remove dead instructions (loads and stores)
+    // Step 3: Pre-compute which allocas are fully promoted
+    //         MUST do this BEFORE erasing instructions — otherwise
+    //         alloca->getUses() contains dangling pointers to freed memory,
+    //         causing segfault on Linux (works by accident on Windows).
+    std::set<AllocaInst*> promotableAllocas;
+    std::set<Instruction*> deadSet(toRemove.begin(), toRemove.end());
+    for (auto *alloca : allocas) {
+        bool allRemoved = true;
+        for (auto *use : alloca->getUses()) {
+            if (!deadSet.count(dynamic_cast<Instruction*>(use))) {
+                allRemoved = false;
+                break;
+            }
+        }
+        if (allRemoved) {
+            promotableAllocas.insert(alloca);
+        }
+    }
+
+    // Step 4: Remove dead instructions (loads and stores)
     for (auto *inst : toRemove) {
         auto *bb = inst->getParent();
         if (!bb) continue;
@@ -217,37 +236,23 @@ PreservedAnalyses Mem2Reg::run(Function &F, FunctionAnalysisManager &FAM) {
         }
     }
 
-    // Step 4: Remove promoted allocas (all loads/stores were replaced)
+    // Step 5: Remove promoted allocas (uses pre-computed set, no dangling reads)
     unsigned promoted = 0;
-    for (auto *alloca : allocas) {
-        // Check if any use remains that is NOT in toRemove
-        bool allRemoved = true;
-        for (auto *use : alloca->getUses()) {
-            auto *inst = dynamic_cast<Instruction*>(use);
-            if (inst) {
-                bool found = false;
-                for (auto *dead : toRemove) {
-                    if (dead == inst) { found = true; break; }
-                }
-                if (!found) { allRemoved = false; break; }
-            }
-        }
-        if (allRemoved) {
-            auto *bb = alloca->getParent();
-            if (bb) {
-                auto &list = bb->getInstList();
-                for (auto it = list.begin(); it != list.end(); ++it) {
-                    if (it->get() == alloca) {
-                        list.erase(it);
-                        promoted++;
-                        break;
-                    }
+    for (auto *alloca : promotableAllocas) {
+        auto *bb = alloca->getParent();
+        if (bb) {
+            auto &list = bb->getInstList();
+            for (auto it = list.begin(); it != list.end(); ++it) {
+                if (it->get() == alloca) {
+                    list.erase(it);
+                    promoted++;
+                    break;
                 }
             }
         }
     }
 
-    // Step 5: Remove degenerate phis (all incoming values are identical)
+    // Step 6: Remove degenerate phis (all incoming values are identical)
     for (auto &bb : F.getBasicBlocks()) {
         auto &list = bb->getInstList();
         auto it = list.begin();
