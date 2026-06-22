@@ -83,6 +83,7 @@ add_library(ll1Opt OBJECT
     Opt/Passes/GVN.cpp
     Opt/Passes/SimplifyCFG.cpp
     Opt/Passes/DCE.cpp
+    Opt/Passes/LoopUnroll.cpp
 )
 target_include_directories(ll1Opt PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(ll1Opt PUBLIC ll1IR)

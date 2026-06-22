@@ -164,10 +164,12 @@ void Target8086ISel::selectBinary(SDNode *N, MCOpcode opc) {
     Register src1 = getOperandVReg(N->getOperand(0));
     SDValue src2Val = N->getOperand(1);
 
-    // MOV dest, src1
-    MachineInstr &mov = emitMI(MCOpcode::MOV, IsMoveImm);
-    mov.addReg(dest, true);
-    mov.addReg(src1);
+    // MOV dest, src1 (skip if same register — peephole)
+    if (dest != src1) {
+        MachineInstr &mov = emitMI(MCOpcode::MOV, IsMoveImm);
+        mov.addReg(dest, true);
+        mov.addReg(src1);
+    }
 
     // ADD/SUB/etc dest, src2 — use immediate if constant to avoid reg collision
     MachineInstr &arith = emitMI(opc);

@@ -213,15 +213,16 @@ std::string Target8086MCInstPrinter::printPrologue(const MachineFunction &MF) {
     std::ostringstream prologue;
 
     int localSize = MF.getFrameInfo().getStackSize();
+    int totalSize = localSize + SpillSize;
 
     prologue << "    push bp\n";
     prologue << "    mov  bp, sp\n";
-    if (localSize > 0) {
-        prologue << "    sub  sp, " << localSize << "\n";
+    if (totalSize > 0) {
+        prologue << "    sub  sp, " << totalSize << "\n";
     }
     prologue << "    mov  bx, bp\n";
-    if (localSize > 0) {
-        prologue << "    sub  bx, " << localSize << "\n";
+    if (totalSize > 0) {
+        prologue << "    sub  bx, " << totalSize << "\n";
     }
 
     return prologue.str();

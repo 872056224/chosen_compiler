@@ -19,6 +19,7 @@ public:
     void setRegMapping(const std::unordered_map<Register, Register> &V2P);
     void setSpillSlots(const std::unordered_map<Register, int> &Slots);
     void setFrameInfo(const MachineFrameInfo &FI) { MFI = &FI; }
+    void setSpillSize(int sz) { SpillSize = sz; }
 
     std::string print(const MachineFunction &MF);
     std::string print(const MachineInstr &MI);
@@ -32,6 +33,7 @@ private:
     std::unordered_map<Register, Register> VRegToPhysReg;
     std::unordered_map<Register, int> SpillSlots;
     const MachineFrameInfo *MFI = nullptr;
+    int SpillSize = 0;
     std::ostringstream Out;
 
     std::string printOperand(const MachineOperand &MO, bool isByte = false);
