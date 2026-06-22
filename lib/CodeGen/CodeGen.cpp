@@ -1,19 +1,132 @@
 #include <ll1/CodeGen/CodeGen.h>
+#include <ll1/CodeGen/MachineFunction.h>
+#include <ll1/CodeGen/RegAlloc.h>
+#include <ll1/CodeGen/SelectionDAG/SDBuilder.h>
+#include <ll1/CodeGen/Target/TargetMachine.h>
+#include <ll1/CodeGen/Target/TargetInstrInfo.h>
+#include <ll1/CodeGen/Target8086/Target8086ISel.h>
+#include <ll1/CodeGen/Target8086/Target8086MCInstPrinter.h>
 #include <sstream>
 #include <algorithm>
 #include <cctype>
 
 namespace ll1 {
 
-// BX reserved as base pointer, only AX/CX/DX for temps
-const char *CodeGen::TempRegs[] = {"ax", "cx", "dx"};
-const int CodeGen::NumTempRegs = 3;
+CodeGen::CodeGen() {
+    FreeRegs = {"ax", "cx", "dx"};
+}
 
-CodeGen::CodeGen() {}
+// ============================================================
+// preScanLiveness — compute last use position for each Value
+// ============================================================
+void CodeGen::preScanLiveness(Function &fn) {
+    int pos = 0;
 
+    // Walk all instructions, assigning positions and tracking last use
+    for (auto &bb : fn.getBasicBlocks()) {
+        for (auto &inst : bb->getInstList()) {
+            // For each operand of this instruction, record this position
+            // as the LAST use of that operand (we scan forward)
+            for (unsigned i = 0; i < inst->getNumOperands(); ++i) {
+                Value *opnd = inst->getOperand(i);
+                if (opnd) {
+                    State.LastUsePos[opnd] = pos;
+                }
+            }
+            pos++;
+        }
+    }
+
+    State.CurrentPos = 0;
+}
+
+// ============================================================
+// Linear scan register allocation helpers
+// ============================================================
+std::string CodeGen::allocRegLinear(Value *v) {
+    // 1. Already assigned?
+    auto it = State.VRegNames.find(v);
+    if (it != State.VRegNames.end()) return it->second;
+
+    // 2. Free register available?
+    if (!FreeRegs.empty()) {
+        std::string r = FreeRegs.back();
+        FreeRegs.pop_back();
+        State.VRegNames[v] = r;
+        int lastUse = State.LastUsePos.count(v) ? State.LastUsePos[v] : 99999;
+        OccupiedRegs[r] = {v, lastUse};
+        return r;
+    }
+
+    // 3. All registers occupied — spill the one with furthest last use
+    std::string evictReg;
+    int furthestUse = -1;
+    for (auto &kv : OccupiedRegs) {
+        if (kv.second.lastUse > furthestUse) {
+            furthestUse = kv.second.lastUse;
+            evictReg = kv.first;
+        }
+    }
+
+    // Spill the evicted register
+    spillReg(evictReg);
+
+    // Assign the freed register to the new value
+    int lastUse = State.LastUsePos.count(v) ? State.LastUsePos[v] : 99999;
+    OccupiedRegs[evictReg] = {v, lastUse};
+    State.VRegNames[v] = evictReg;
+    return evictReg;
+}
+
+std::string CodeGen::spillReg(const std::string &reg) {
+    auto it = OccupiedRegs.find(reg);
+    if (it == OccupiedRegs.end()) return reg;
+
+    Value *oldVal = it->second.val;
+    if (oldVal) {
+        int spillOff = getSpillSlot(oldVal);
+        emit("mov", memOp("bx", spillOff) + ", " + reg, "; spill " + oldVal->getName());
+        State.VRegNames.erase(oldVal);
+    }
+    OccupiedRegs.erase(it);
+    return reg;
+}
+
+std::string CodeGen::reloadSpilled(Value *v) {
+    std::string r = allocRegLinear(v);
+    int spillOff = getSpillSlot(v);
+    emit("mov", r + ", " + memOp("bx", spillOff), "; reload " + v->getName());
+    return r;
+}
+
+int CodeGen::getSpillSlot(Value *v) {
+    auto it = State.StackSlots.find(v);
+    if (it != State.StackSlots.end()) return it->second;
+    int off = State.SpillSlotOffset;
+    State.SpillSlotOffset += 2;
+    State.StackSlots[v] = off;
+    return off;
+}
+
+void CodeGen::freeRegsIfDone() {
+    for (auto it = OccupiedRegs.begin(); it != OccupiedRegs.end(); ) {
+        if (it->second.lastUse < State.CurrentPos) {
+            FreeRegs.push_back(it->first);
+            it = OccupiedRegs.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    State.CurrentPos++;
+}
+
+// Anonymous temporary register — simple round-robin for old pipeline
+// (linear scan's spill logic needs FreeRegs replenishment to work properly)
 std::string CodeGen::allocTempReg() {
-    std::string r = TempRegs[NextTempReg];
-    NextTempReg = (NextTempReg + 1) % NumTempRegs;
+    static int nextReg = 0;
+    static const char* regs[] = {"ax", "cx", "dx"};
+    std::string r = regs[nextReg];
+    nextReg = (nextReg + 1) % 3;
     return r;
 }
 
@@ -55,9 +168,7 @@ std::string CodeGen::varLabel(Value *v) {
 std::string CodeGen::assignReg(Value *v) {
     auto it = State.VRegNames.find(v);
     if (it != State.VRegNames.end()) return it->second;
-    std::string r = allocTempReg();
-    State.VRegNames[v] = r;
-    return r;
+    return allocRegLinear(v);
 }
 
 std::string CodeGen::getReg(Value *v) {
@@ -121,6 +232,16 @@ std::string CodeGen::loadToReg(Value *v) {
         return r;
     }
 
+    // Check if value was spilled — reload into a register
+    auto spillIt = State.StackSlots.find(v);
+    if (spillIt != State.StackSlots.end()) {
+        // Was spilled, reload into a register
+        std::string r = allocTempReg();
+        emit("mov", r + ", " + memOp("bx", spillIt->second),
+             "; reload " + v->getName());
+        return r;
+    }
+
     std::string op = getOperand(v);
 
     // Already a real register
@@ -154,8 +275,8 @@ void CodeGen::emit(const std::string &opcode, const std::string &operands, const
 }
 
 // ====== Machine code generation ======
-MachineModule CodeGen::generate(Module &mod) {
-    MachineModule mm;
+LegacyMachineModule CodeGen::generate(Module &mod) {
+    LegacyMachineModule mm;
 
     for (auto &fn : mod.getFunctionList()) {
         State = FuncState();
@@ -180,18 +301,27 @@ void CodeGen::generateFunction(Function &fn) {
         State.BlockLabels[bb.get()] = label;
     }
 
+    // Linear scan: pre-compute liveness
+    preScanLiveness(fn);
+
+    // Reset allocator state
+    FreeRegs = {"ax", "cx", "dx"};
+    OccupiedRegs.clear();
+    State.CurrentPos = 0;
+
     for (auto &bb : fn.getBasicBlocks()) {
         generateBB(*bb);
     }
 }
 
 void CodeGen::generateBB(BasicBlock &bb) {
-    MachineBB mbb;
+    LegacyMachineBB mbb;
     mbb.Label = State.BlockLabels[&bb];
     State.MF.Blocks.push_back(mbb);
 
     for (auto &inst : bb.getInstList()) {
         generateInst(*inst);
+        freeRegsIfDone();
     }
 }
 
@@ -451,7 +581,7 @@ void CodeGen::generateInst(Instruction &inst) {
 }
 
 // ====== Assembly emission ======
-std::string CodeGen::emitAssembly(const MachineModule &mm) {
+std::string CodeGen::emitAssembly(const LegacyMachineModule &mm) {
     std::ostringstream asmOut;
 
     for (auto &fn : mm.Functions) {
@@ -567,6 +697,54 @@ std::string CodeGen::emitAssembly(const MachineModule &mm) {
 
     asmOut << "hlt\n";
     return asmOut.str();
+}
+
+// ============================================================
+// New pipeline (SDAG → ISel → RegAlloc → Print)
+// ============================================================
+CodeGen::CodeGen(TargetMachine &tm) : TM(&tm), UseNewPipeline(true) {}
+
+CodeGen::~CodeGen() = default;
+
+std::string CodeGen::generateNew(Module &mod) {
+    if (!TM || !UseNewPipeline) return "";
+    return generateNewImpl(mod);
+}
+
+std::string CodeGen::generateNewImpl(Module &mod) {
+    const auto &TRI = TM->getRegInfo();
+    const auto &TII = TM->getInstrInfo();
+    Printer = std::make_unique<Target8086MCInstPrinter>(TRI);
+    std::ostringstream allOutput;
+
+    for (auto &fn : mod.getFunctionList()) {
+        if (fn->getName() == "__print" || fn->getName() == "__read") continue;
+
+        MachineFunction MF(fn->getName());
+        SelectionDAG dag(MF);
+        SelectionDAGBuilder builder(dag, TRI, TM->getTargetLowering());
+        builder.visit(*fn);
+
+        Target8086ISel isel(dag, TRI, TM->getTargetLowering());
+        isel.runOnFunction(MF);
+        MF.computeCFG();
+        LinearScanRegAlloc regAlloc(TRI);
+        regAlloc.run(MF);
+
+        // Feed reg mapping to printer
+        Printer->setRegMapping(regAlloc.getMapping());
+        Printer->setSpillSlots(regAlloc.getSpillSlots());
+        Printer->setFrameInfo(MF.getFrameInfo());
+
+        // Step 6: Print assembly
+        allOutput << Printer->print(MF);
+    }
+
+    // Emit runtime helpers
+    Printer->printRuntime();
+    allOutput << "hlt\n";
+
+    return allOutput.str();
 }
 
 } // namespace ll1

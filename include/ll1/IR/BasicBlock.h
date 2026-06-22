@@ -38,6 +38,12 @@ public:
     Function *getParent() const { return Parent; }
     void setParent(Function *f) { Parent = f; }
 
+    // Get predecessor blocks (computed from use-def chain)
+    std::vector<BasicBlock*> getPredecessors() const;
+
+    // Get successor blocks (from terminator)
+    std::vector<BasicBlock*> getSuccessors() const;
+
     static bool classof(const Value *v);
 
 private:

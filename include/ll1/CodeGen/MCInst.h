@@ -26,23 +26,22 @@ struct MCInst {
 };
 
 // Machine basic block
-struct MachineBB {
+struct LegacyMachineBB {
     std::string Label;
     std::vector<MCInst> Instructions;
     std::vector<std::string> TextLines; // Raw assembly text lines from emit()
 };
 
-// Machine function
-struct MachineFunction {
+// Legacy machine function (backward compat with old CodeGen)
+struct LegacyMachineFunction {
     std::string Name;
-    std::vector<MachineBB> Blocks;
+    std::vector<LegacyMachineBB> Blocks;
     int LocalSize = 0;  // Total bytes of local variables
 };
 
-// Machine module (output)
-struct MachineModule {
-    std::vector<MachineFunction> Functions;
-    // Global data section (for string literals, etc.)
+// Legacy machine module (backward compat)
+struct LegacyMachineModule {
+    std::vector<LegacyMachineFunction> Functions;
     std::vector<std::string> DataSection;
 };
 

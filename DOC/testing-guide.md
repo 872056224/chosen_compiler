@@ -1,299 +1,83 @@
 # LL1 Compiler — 测试指南
 
-## 环境要求
+> 最后更新: 2026-06-22 | 测试数: 17 | 全部通过
 
-- Windows + MinGW (gcc 14.2.0)
-- CMake 3.16+
-- Git Bash 或 PowerShell
+---
 
-## 构建
+## 快速运行
 
 ```bash
-cd D:/my_project/compiler/LL1-emu8086/build
+cd build
 cmake .. -G "MinGW Makefiles"
 cmake --build .
+ctest
 ```
 
-构建产物：
+预期输出：
 ```
-build/
-├── tools/ll1c/ll1c.exe          ← 编译器
-└── test/
-    ├── test_type.exe             ← 11 个单元测试
-    ├── test_value.exe
-    ├── test_instruction.exe
-    ├── test_bb.exe
-    ├── test_function.exe
-    ├── test_irbuilder.exe
-    ├── test_lexer.exe
-    ├── test_ast.exe
-    ├── test_parser.exe
-    ├── test_sema.exe
-    ├── test_irgen.exe
-    ├── test_codegen.exe
-    └── test_e2e.exe              ← 端到端集成测试
+100% tests passed, 0 tests failed out of 17
 ```
 
 ---
 
-## 运行所有测试（推荐）
+## 17 个测试逐项说明
 
-```bash
-cd D:/my_project/compiler/LL1-emu8086/build
-ctest -V
-```
+### IR 层（6 个）
 
-输出示例：
-```
-test 1
-    Start 1: Type
-1/13 Test #1: Type .............................   Passed    0.01 sec
-test 2
-    Start 2: Value
-2/13 Test #2: Value ............................   Passed    0.01 sec
-...
-test 13
-    Start 13: Integration
-13/13 Test #13: Integration ......................   Passed    0.01 sec
+| # | 测试 | 覆盖内容 |
+|---|------|---------|
+| 1 | **Type** | Void/Int1/Int8/Int16 单例，getKind() |
+| 2 | **Value** | 命名、类型、Use-Def 链，replaceAllUsesWith() (RAUW) |
+| 3 | **Instruction** | BinaryOpInst/RetInst/AllocaInst/StoreInst/LoadInst/ICmpInst/PhiInst 创建与操作数 |
+| 4 | **BasicBlock** | 指令列表管理、terminator 检测、getPredecessors/getSuccessors |
+| 5 | **Function** | 参数/BB 管理、Module 函数查找、entry block |
+| 6 | **IRBuilder** | 全部工厂方法 (alloca/store/load/add/icmp/br/ret/phi/call)，自动插入当前 BB |
 
-100% tests passed, 0 tests failed out of 13
-Total Test time (real) =   0.16 sec
-```
+### 前端（4 个）
 
-## 运行单个测试
+| # | 测试 | 覆盖内容 |
+|---|------|---------|
+| 7 | **Lexer** | 14 关键字、标识符、数字、14 运算符(含多字符)、分隔符、行注释、行列号 |
+| 8 | **AST** | VarDecl/FuncDecl/Block/IfStmt/WhileStmt/ForStmt/ReturnStmt/BinaryExpr/VarExpr/IntegerLiteral/BoolLiteral/CallExpr |
+| 9 | **Parser** | 变量声明、20+ 表达式模式、运算符优先级、一元运算、错误检测(缺失标识符/括号/顶层裸表达式) |
+| 10 | **Sema** | 合法程序(全局/局部变量、函数、if/while 控制流)、错误检测(重复定义/未声明/类型不匹配/非bool条件) |
 
-```bash
-# 只运行 Lexer 测试
-ctest -R Lexer -V
+### 上端（IRGen）（1 个）
 
-# 只运行 CodeGen 测试
-ctest -R CodeGen -V
+| # | 测试 | 覆盖内容 |
+|---|------|---------|
+| 11 | **IRGen** | AST→LLVM IR: 变量声明/赋值/返回、算术、比较+if/else、while循环、void函数、多函数、bool变量、复合表达式 |
 
-# 只运行 IR 相关测试
-ctest -R "(Type|Value|Instruction|BasicBlock|Function|IRBuilder)" -V
-```
+### 旧后端（1 个）
 
----
+| # | 测试 | 覆盖内容 |
+|---|------|---------|
+| 12 | **CodeGen** | IR→8086汇编: return 42、变量add、if/else cmp+jl+jmp、框架输出 |
 
-## 13 个测试逐项说明
+### 新 Machine IR 后端（4 个）⚠️ 本次新增
 
-### 1. Type — IR 类型系统
-```bash
-ctest -R Type -V
-```
-**测什么**：`Type` 类的 `Void`/`Int1`/`Int8`/`Int16` 单例模式，`getKind()` 正确性
+| # | 测试 | 覆盖内容 |
+|---|------|---------|
+| 13 | **Register** | Register 类型 (uint32_t)：NoRegister 哨兵、物理/虚拟寄存器判別、index↔vreg 互转、8086 物理编号 (AX=1..DI=8) |
+| 14 | **MachineOperand** | 5 种操作数类型 (Reg/Imm/FI/MBB/ES) 的创建与访问器、def/dead/kill 标志操作 |
+| 15 | **SelectionDAG** | SDNode/SDValue 基础：EntryToken、Constant、FrameIndex、Binary(ADD)、LOAD/STORE、SETCC(谓词)、RET、SExt、Payload 存取、SDValue 比较 |
+| 16 | **NewPipeline** | 新管线端到端集成：5 个子测试(func_call/if-else/for循环/简单return/print)，验证输出含函数标签、push/pop、call、cmp+jcc、jmp、ret |
 
-### 2. Value — IR 值基类
-```bash
-ctest -R "^Value$" -V
-```
-**测什么**：`Value` 的命名、类型、Use-Def 链，`replaceAllUsesWith()` (RAUW)
+### 集成（1 个）
 
-### 3. Instruction — IR 指令
-```bash
-ctest -R "^Instruction$" -V
-```
-**测什么**：`BinaryOpInst`/`RetInst`/`AllocaInst`/`StoreInst`/`LoadInst`/`ICmpInst` 的创建和操作数
-
-### 4. BasicBlock — IR 基本块
-```bash
-ctest -R "^BasicBlock$" -V
-```
-**测什么**：`BasicBlock` 的指令列表管理、terminator 检测
-
-### 5. Function — IR 函数 & Module
-```bash
-ctest -R "^Function$" -V
-```
-**测什么**：`Function` 的参数/BB 管理，`Module` 的函数查找，`entry block`
-
-### 6. IRBuilder — IR 构建器
-```bash
-ctest -R IRBuilder -V
-```
-**测什么**：`IRBuilder` 的全部工厂方法（alloca/store/load/add/icmp/br/ret），自动插入到当前 BB
-
-### 7. Lexer — 词法分析器
-```bash
-ctest -R Lexer -V
-```
-**测什么**：
-- 14 个关键字识别
-- 标识符 (字母/数字/下划线)
-- 数字字面量
-- 14 个运算符 (含多字符 `<=` `>=` `==` `!=` `&&` `||`)
-- 分隔符 (`(` `)` `{` `}` `;` `,`)
-- `//` 行注释跳过
-- 源码行号/列号跟踪
-
-### 8. AST — 抽象语法树
-```bash
-ctest -R "^AST$" -V
-```
-**测什么**：所有 AST 节点类型的创建：`VarDecl`/`FuncDecl`/`Block`/`IfStmt`/`WhileStmt`/`ReturnStmt`/`BinaryExpr`/`VarExpr`/`IntegerLiteral`
-
-### 9. Parser — 递归下降解析器
-```bash
-ctest -R "^Parser$" -V
-```
-**测什么**：
-- 变量声明（无/有初始值）
-- 表达式（20+ 种模式：加减乘除、比较、逻辑、赋值链）
-- 运算符优先级（`1+2*3` vs `(1+2)*3`）
-- 一元运算（`-x`, `!flag`）
-- 空程序处理
-- **错误检测**：缺失标识符、缺失括号、顶层裸表达式
-
-### 10. Sema — 语义分析
-```bash
-ctest -R "^Sema$" -V
-```
-**测什么**：
-- **合法程序**：全局变量、函数、局部变量、if/while 控制流
-- **错误检测**：重复定义、未声明变量、return 类型不匹配、非 bool 条件
-
-### 11. IRGen — IR 代码生成
-```bash
-ctest -R "^IRGen$" -V
-```
-**测什么**：AST → LLVM IR 完整翻译
-- 变量声明/赋值/返回
-- 算术表达式（add/sub/mul/div）
-- 比较 + if/else
-- while 循环
-- void 函数、多函数、bool 变量
-- 复合表达式
-
-### 12. CodeGen — 8086 代码生成
-```bash
-ctest -R "^CodeGen$" -V
-```
-**测什么**：LLVM IR → 8086 汇编
-- `return 42` → `mov ax, 42` + `ret`
-- 变量 `add` → `mov` + `add`
-- if/else → `cmp` + `jl` + `jmp`
-- 汇编输出包含 `main proc`/`endp`/`end`
-
-### 13. Integration — 端到端集成
-```bash
-ctest -R Integration -V
-```
-**测什么**：全管线 `源码 → .asm文件`
-1. 简单表达式 `a + b`
-2. if/else 分支
-3. while 循环
-4. void 函数
-5. 多 return 路径
-6. 从文件读入源码
-7. 写入 .asm 输出文件
-
----
-
-## 编译器 CLI 使用
-
-```bash
-cd D:/my_project/compiler/LL1-emu8086/build
-
-# 编译单个文件
-./tools/ll1c/ll1c.exe ../examples/basic.ll1 -o basic.asm
-
-# 查看汇编输出
-cat basic.asm
-```
-
-### 示例 1：if/else 分支
-输入 (`examples/basic.ll1`)：
-```c
-fn int main() {
-    int a = 10;
-    int b = 20;
-    if (a < b) {
-        return b;
-    }
-    return a;
-}
-```
-
-输出 (`basic.asm`)：
-```asm
-.code
-main proc
-    push bp
-    mov  bp, sp
-    sub  sp, 4
-    mov  ax, 10
-    mov  [bp-2], ax
-    mov  bx, 20
-    mov  [bp-4], bx
-    mov  cx, [bp-2]
-    cmp  ax, [bp-4]
-    jl   .main_then
-    jmp  .main_if_end
-.main_then:
-    mov  ax, [bp-4]
-    ret
-.main_if_end:
-    mov  ax, [bp-2]
-    ret
-    mov  sp, bp
-    pop  bp
-main endp
-end
-```
-
-### 示例 2：while 循环
-输入 (`examples/loop.ll1`)：
-```c
-fn int main() {
-    int i = 0;
-    int sum = 0;
-    while (i < 10) {
-        sum = sum + i;
-        i = i + 1;
-    }
-    return sum;
-}
-```
-
-输出 (`loop.asm`)：
-```asm
-.code
-main proc
-    push bp
-    mov  bp, sp
-    sub  sp, 4
-    mov  ax, 0
-    mov  [bp-2], ax
-    mov  bx, 0
-    mov  [bp-4], bx
-    jmp  .main_while_cond
-.main_while_cond:
-    mov  cx, [bp-2]
-    cmp  cx, 10
-    jl   .main_while_body
-    jmp  .main_while_exit
-.main_while_body:
-    mov  ax, [bp-4]
-    add  ax, [bp-2]
-    mov  [bp-4], ax
-    mov  bx, [bp-2]
-    add  bx, 1
-    mov  [bp-2], bx
-    jmp  .main_while_cond
-.main_while_exit:
-    mov  ax, [bp-4]
-    ret
-    mov  sp, bp
-    pop  bp
-main endp
-end
-```
+| # | 测试 | 覆盖内容 |
+|---|------|---------|
+| 17 | **Integration** | 全管线 `源码→.asm文件`: 简单表达式、if/else、while循环、void函数、多return路径、文件读入、.asm写出 |
 
 ---
 
 ## 测试覆盖一览
 
-| 模块 | 测试文件 | 通过 |
+```
+17 tests: IR(6) + Frontend(4) + IRGen(1) + OldBackend(1) + NewBackend(4) + Integration(1)
+```
+
+| 模块 | 测试文件 | 状态 |
 |------|---------|------|
 | Type | `test/IR/test_type.cpp` | ✅ |
 | Value/User | `test/IR/test_value.cpp` | ✅ |
@@ -306,22 +90,184 @@ end
 | Parser | `test/Parse/test_parser.cpp` | ✅ |
 | Sema | `test/Sema/test_sema.cpp` | ✅ |
 | IRGen | `test/IRGen/test_irgen.cpp` | ✅ |
-| CodeGen | `test/CodeGen/test_codegen.cpp` | ✅ |
+| CodeGen (old) | `test/CodeGen/test_codegen.cpp` | ✅ |
+| Register | `test/CodeGen/test_register.cpp` | ✅ ⚠️ new |
+| MachineOperand | `test/CodeGen/test_machine_operand.cpp` | ✅ ⚠️ new |
+| SelectionDAG | `test/CodeGen/test_selection_dag.cpp` | ✅ ⚠️ new |
+| NewPipeline | `test/CodeGen/test_new_pipeline.cpp` | ✅ ⚠️ new |
 | Integration | `test/Integration/test_e2e.cpp` | ✅ |
-
-**总计：13/13 通过**
 
 ---
 
-## 手动验证 8086 输出（在 emu8086 中）
+## 新旧管线对照
 
-1. 编译 `.ll1` 源文件：
+| 特性 | 旧管线 (`--opt`) | 新管线 (`--new-codegen --opt`) |
+|------|-----------------|------------------------------|
+| 测试覆盖 | Test 12 (CodeGen) | Test 13-16 (Register, MO, SDAG, NewPipeline) |
+| 中间表示 | 直接 emit 文本 | MachineInstr + MachineOperand |
+| 寄存器 | 字符串 "ax"/"cx"/"dx" | Register (uint32_t, phys/vreg) |
+| 指令选择 | switch-case 一对一映射 | SelectionDAG → ISel 模式匹配 |
+| Phi 处理 | PhiElimination (alloca+store+load) | SDBuilder COPY 降低 |
+| 寄存器分配 | 线性扫描 (string) | 线性扫描 (Register) + spill/reload 插入 |
+| 输出方式 | 生成过程中 `emit()` | 后置 Printer (MachineInstr→text) |
+| 目标抽象 | 无 | TargetMachine / TRI / TII / TLI |
+
+---
+
+## 运行单个测试
+
 ```bash
-./tools/ll1c/ll1c.exe ../examples/basic.ll1 -o basic.asm
+# 新 Machine IR 测试
+ctest -R Register -V
+ctest -R MachineOperand -V
+ctest -R SelectionDAG -V
+ctest -R NewPipeline -V
+
+# 只运行旧 CodeGen 测试
+ctest -R "^CodeGen$" -V
+
+# 只运行 IR 相关
+ctest -R "(Type|Value|Instruction|BasicBlock|Function|IRBuilder)" -V
+
+# 端到端
+ctest -R "(Integration|NewPipeline)" -V
 ```
 
-2. 在 emu8086 中打开 `basic.asm`
+---
 
-3. 运行 → 查看 AX 寄存器的最终值
-   - `basic.asm` 返回 `20` (b > a，走 then 分支)
-   - `loop.asm` 返回 `45` (0+1+...+9=45)
+## CLI 使用
+
+```bash
+cd build
+
+# 旧管线（默认）
+./tools/ll1c/ll1c.exe ../examples/func_call.ll1 -o old.asm
+
+# 旧管线 + 优化
+./tools/ll1c/ll1c.exe ../examples/func_call.ll1 --opt -o old_opt.asm
+
+# 新 Machine IR 管线
+./tools/ll1c/ll1c.exe ../examples/func_call.ll1 --new-codegen -o new.asm
+
+# 新管线 + 优化
+./tools/ll1c/ll1c.exe ../examples/func_call.ll1 --new-codegen --opt -o new_opt.asm
+
+# 输出 LLVM IR
+./tools/ll1c/ll1c.exe ../examples/func_call.ll1 --emit-llvm -o output.ll
+```
+
+---
+
+## 示例输出（新管线）
+
+输入 (`examples/func_call.ll1`)：
+```c
+fn int add(int a, int b) { return a + b; }
+fn int main() {
+    int x = add(10, 20);
+    print(x);
+    return 0;
+}
+```
+
+输出 (`--new-codegen`)：
+```asm
+; Function: add
+add:
+    push bp
+    mov  bp, sp
+    sub  sp, 4
+    mov  bx, bp
+    sub  bx, 4
+entry:
+    mov [bx], dx
+    mov [bx+2], dx
+    mov dx, [bx]
+    mov cx, [bx+2]
+    mov ax, dx
+    add ax, cx
+    mov ax, ax
+    mov  sp, bp
+    pop  bp
+    ret
+
+; Function: main
+main:
+    push bp
+    mov  bp, sp
+    sub  sp, 2
+    mov  bx, bp
+    sub  bx, 2
+entry:
+    push dx
+    push dx
+    call add
+    add sp, 4
+    mov [bx], dx
+    mov dx, [bx]
+    push dx
+    call __print
+    add sp, 2
+    mov ax, dx
+    mov  sp, bp
+    pop  bp
+    ret
+hlt
+```
+
+---
+
+## 编译流水线参考数据
+
+### test/passdemo/ — Pass 效果演示
+
+展示 7 个 Pass 对源码的逐步优化效果，每个 Pass 后 dump IR：
+
+| 文件 | 说明 |
+|------|------|
+| `pass_demo.ll1` | 测试源文件（含 while 循环、算术、条件） |
+| `00_unoptimized.ll` | 未优化的原始 IR（alloca + store + load） |
+| `01_after_Mem2Reg_main.ll` | Mem2Reg 后：alloca 消除，phi 节点出现 |
+| `02_after_PhiElimination_main.ll` | PhiElim 后：phi → alloca+store+load |
+| `03_after_InstCombine_main.ll` | InstCombine 后：常量折叠、代数化简 |
+| `04_after_Reassociate_main.ll` | Reassociate 后：表达式重结合 |
+| `05_after_GVN_main.ll` | GVN 后：公共子表达式消除 |
+| `06_after_SimplifyCFG_main.ll` | SimplifyCFG 后：CFG 简化 |
+| `07_after_DCE_main.ll` | DCE 后：死代码消除 |
+| `08_final.asm` | 最终 8086 汇编输出 |
+| `summary.md` | 每个 Pass 效果的 diff 分析 |
+
+### test/bubbletest/ — 冒泡排序全链路
+
+真实算法（20 个元素冒泡排序）的完整编译流水线：
+
+| 文件 | 说明 |
+|------|------|
+| `bubble_sort.ll1` | 冒泡排序源文件 |
+| `00_unoptimized.ll` 至 `07_after_DCE.ll` | 逐 Pass IR dump |
+| `08_final.asm` | 最终 8086 汇编 |
+| `summary.md` | 编译过程分析（BB 数变化、关键优化） |
+
+### 生成 Pass Dump
+
+```bash
+# 在 passdemo 目录生成最新的逐 Pass IR
+cd build
+./tools/ll1c/ll1c.exe ../test/passdemo/pass_demo.ll1 --dump-pass-ir=../test/passdemo/ -o ../test/passdemo/pass_demo.asm
+```
+
+---
+
+## 手动验证（emu8086）
+
+1. 编译源文件：
+```bash
+./tools/ll1c/ll1c.exe ../examples/for_test.ll1 --new-codegen -o for_test_new.asm
+```
+
+2. 在 emu8086 中打开 `for_test_new.asm`
+
+3. 运行 → 查看输出：
+   - `for_test.ll1` 求和 0-9 → 应输出 `45`
+   - `func_call.ll1` → 应输出 `30`
+   - `bubble_sort.ll1` → 应输出排序后的 20 个随机数

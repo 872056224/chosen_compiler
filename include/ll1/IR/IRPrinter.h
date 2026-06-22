@@ -16,17 +16,18 @@ public:
     // Print entire module to LLVM IR text
     static std::string print(Module &mod);
 
-private:
     // State for value numbering (unnamed values get %0, %1, ...)
     struct PrintState {
         int NextID = 0;
-        // Map unnamed Value* → assigned number
         std::map<const Value*, int> IDMap;
         std::string getName(const Value *v);
     };
 
-    static std::string printModule(Module &mod, PrintState &s);
+    // Print individual function (used by --dump-pass-ir)
     static std::string printFunction(Function &fn, PrintState &s);
+
+private:
+    static std::string printModule(Module &mod, PrintState &s);
     static std::string printBasicBlock(BasicBlock &bb, PrintState &s);
     static std::string printInstruction(const Instruction &inst, PrintState &s);
     static std::string printOperand(const Value *v, PrintState &s);

@@ -1,7 +1,7 @@
 # LL1 Compiler — 技术架构设计文档
 
-> **状态**: ✅ MVP 实现完成  
-> **最后更新**: 2026-06-19  
+> **状态**: ✅ 全部实现完成（含优化管线 + Machine IR 后端 + SelectionDAG + 虚拟寄存器 + Target 抽象）  
+> **最后更新**: 2026-06-22  
 > **参考**: LLVM 源码 (`llvm-project-main/`)
 
 ---
@@ -61,15 +61,23 @@ LL(1) Source (.ll1)
          │ LLVM IR Module (内存)
          ▼
 ┌─────────────────┐
-│   Optimizer      │  IR → IR (Pass Pipeline)
+│   Optimizer      │  IR → IR (7 Passes + DomTree)
 │   (lib/Opt)      │
 └────────┬────────┘
          │ 优化后的IR Module
          ▼
-┌─────────────────┐
-│   8086 CodeGen   │  LLVM IR → 8086 Assembly
-│   (lib/CodeGen)  │
-└────────┬────────┘
+┌──────────────────────────────────────────┐
+│  8086 CodeGen (lib/CodeGen)              │
+│                                          │
+│  旧管线 (--opt):                         │
+│    IR → 直接 emit 8086 文本              │
+│                                          │
+│  新管线 (--new-codegen):                 │
+│    IR → SDBuilder → SelectionDAG         │
+│        → Target8086ISel → MachineInstr   │
+│        → LinearScanRegAlloc              │
+│        → MCInstPrinter → 8086 .asm       │
+└────────┬─────────────────────────────────┘
          │ .asm 文本文件
          ▼
 ┌─────────────────┐
@@ -85,112 +93,98 @@ LL(1) Source (.ll1)
 ```
 LL1-emu8086/
 ├── CMakeLists.txt              # 顶层 CMake
-├── README.md
 ├── DOC/
 │   ├── prompt.md               # 原始提示词
-│   └── tech-design.md          # 本技术文档
+│   ├── system-analysis.md      # 系统分析文档
+│   ├── tech-design.md          # 本技术文档
+│   ├── language-reference.md   # LL1 语言参考
+│   ├── implementation-plan.md  # 实现计划
+│   ├── calling-convention.md   # 调用约定
+│   ├── opt-pipeline-design.md  # 优化管线设计
+│   └── testing-guide.md        # 测试指南
 │
 ├── include/                    # 公开头文件（仿 llvm/include/llvm/）
 │   └── ll1/
 │       ├── Lex/
-│       │   ├── Lexer.h
-│       │   └── Token.h
+│       │   ├── Lexer.h, Token.h
 │       ├── Parse/
 │       │   └── Parser.h
 │       ├── AST/
-│       │   ├── AST.h
-│       │   ├── Expr.h
-│       │   ├── Stmt.h
-│       │   └── Decl.h
+│       │   ├── AST.h, Expr.h, Stmt.h, Decl.h
 │       ├── Sema/
-│       │   ├── Sema.h
-│       │   ├── Scope.h
-│       │   └── SymbolTable.h
+│       │   ├── Sema.h, Scope.h, SymbolTable.h
 │       ├── IR/
-│       │   ├── Module.h
-│       │   ├── Function.h
-│       │   ├── BasicBlock.h
-│       │   ├── Instruction.h
-│       │   ├── Type.h
-│       │   ├── Value.h
-│       │   └── IRBuilder.h
+│       │   ├── Module.h, Function.h, BasicBlock.h
+│       │   ├── Instruction.h, Type.h, Value.h
+│       │   ├── IRBuilder.h, IRPrinter.h, LLVMContext.h
 │       ├── IRGen/
 │       │   └── IRGen.h
 │       ├── Opt/
 │       │   ├── PassManager.h
 │       │   └── Passes/
-│       │       ├── Mem2Reg.h
-│       │       ├── InstCombine.h
-│       │       ├── SimplifyCFG.h
-│       │       ├── GVN.h
-│       │       └── DCE.h
+│       │       ├── Mem2Reg.h, PhiElim.h, InstCombine.h
+│       │       ├── Reassociate.h, GVN.h, SimplifyCFG.h, DCE.h
+│       │       └── Dominators.h
 │       ├── CodeGen/
-│       │   ├── Target.h
-│       │   ├── TargetMachine.h
-│       │   ├── TargetRegisterInfo.h
-│       │   ├── TargetInstrInfo.h
-│       │   ├── MCInst.h
-│       │   ├── ISelLowering.h
-│       │   ├── MachineScheduler.h     # 占位，后续扩展
-│       │   ├── RegAlloc.h
-│       │   ├── AsmEmitter.h
+│       │   ├── CodeGen.h          # 旧管线 + 新管线入口
+│       │   ├── Register.h         # Register = uint32_t (phys/vreg)
+│       │   ├── MachineOperand.h   # 5 种操作数类型
+│       │   ├── MachineInstr.h     # 30 种 MCOpcode + MachineInstr
+│       │   ├── MachineFunction.h  # MachineBasicBlock + MachineFunction
+│       │   ├── MachineRegisterInfo.h  # vreg 分配
+│       │   ├── MachineFrameInfo.h     # StackSlot 管理
+│       │   ├── RegAlloc.h         # 线性扫描寄存器分配器
+│       │   ├── SelectionDAG/
+│       │   │   ├── ISDOpcodes.h   # 29 个 ISD 操作码
+│       │   │   ├── SDNode.h       # SDNode/SDValue/SDUse
+│       │   │   ├── SelectionDAG.h # DAG 工厂 + BumpPtrAllocator
+│       │   │   └── SDBuilder.h   # IR → DAG Visitor
+│       │   ├── Target/
+│       │   │   ├── TargetMachine.h
+│       │   │   ├── TargetRegisterInfo.h
+│       │   │   ├── TargetInstrInfo.h
+│       │   │   └── TargetLowering.h
 │       │   └── Target8086/
 │       │       ├── Target8086.h
-│       │       ├── Target8086Machine.h
 │       │       ├── Target8086RegisterInfo.h
 │       │       ├── Target8086InstrInfo.h
-│       │       ├── Target8086ISelLowering.h
-│       │       ├── Target8086AsmEmitter.h
-│       │       └── Target8086CallingConv.h
+│       │       ├── Target8086Lowering.h
+│       │       ├── Target8086ISel.h
+│       │       └── Target8086MCInstPrinter.h
 │       └── Driver/
 │           └── Compiler.h
 │
 ├── lib/                        # 实现文件（仿 llvm/lib/）
 │   ├── CMakeLists.txt
-│   ├── Lex/
-│   │   ├── Lexer.cpp
-│   │   └── Token.cpp
-│   ├── Parse/
-│   │   └── Parser.cpp
-│   ├── AST/
-│   │   └── AST.cpp
-│   ├── Sema/
-│   │   ├── Sema.cpp
-│   │   └── Scope.cpp
-│   ├── IR/
-│   │   ├── Module.cpp
-│   │   ├── Function.cpp
-│   │   ├── BasicBlock.cpp
-│   │   ├── Instruction.cpp
-│   │   ├── Type.cpp
-│   │   ├── Value.cpp
-│   │   └── IRBuilder.cpp
-│   ├── IRGen/
-│   │   └── IRGen.cpp
+│   ├── Lex/       Lexer.cpp, Token.cpp
+│   ├── Parse/     Parser.cpp
+│   ├── AST/       AST.cpp
+│   ├── Sema/      Sema.cpp, Scope.cpp
+│   ├── IR/        Module.cpp, Function.cpp, BasicBlock.cpp,
+│   │              Instruction.cpp, Type.cpp, Value.cpp, IRBuilder.cpp
+│   ├── IRGen/     IRGen.cpp
 │   ├── Opt/
 │   │   ├── PassManager.cpp
-│   │   ├── Mem2Reg.cpp
-│   │   ├── InstCombine.cpp
-│   │   ├── SimplifyCFG.cpp
-│   │   ├── GVN.cpp
-│   │   └── DCE.cpp
+│   │   └── Passes/
+│   │       ├── Mem2Reg.cpp, PhiElim.cpp, InstCombine.cpp
+│   │       ├── Reassociate.cpp, GVN.cpp, SimplifyCFG.cpp, DCE.cpp
+│   │       └── Dominators.cpp
 │   ├── CodeGen/
-│   │   ├── Target.cpp
-│   │   ├── TargetMachine.cpp
-│   │   ├── MCInst.cpp
-│   │   ├── ISelLowering.cpp
-│   │   ├── MachineScheduler.cpp     # 占位
-│   │   ├── RegAlloc.cpp
-│   │   ├── TargetRegisterInfo.cpp
-│   │   ├── TargetInstrInfo.cpp
+│   │   ├── CodeGen.cpp
+│   │   ├── MachineOperand.cpp, MachineInstr.cpp
+│   │   ├── MachineFunction.cpp, MachineRegisterInfo.cpp
+│   │   ├── MachineFrameInfo.cpp, RegAlloc.cpp
+│   │   ├── SelectionDAG/
+│   │   │   ├── SelectionDAG.cpp, SDBuilder.cpp
+│   │   ├── Target/
+│   │   │   ├── TargetMachine.cpp, TargetRegisterInfo.cpp
+│   │   │   ├── TargetInstrInfo.cpp, TargetLowering.cpp
 │   │   └── Target8086/
-│   │       ├── Target8086.cpp
-│   │       ├── Target8086Machine.cpp
 │   │       ├── Target8086RegisterInfo.cpp
 │   │       ├── Target8086InstrInfo.cpp
-│   │       ├── Target8086ISelLowering.cpp
-│   │       ├── Target8086AsmEmitter.cpp
-│   │       └── Target8086CallingConv.cpp
+│   │       ├── Target8086Lowering.cpp
+│   │       ├── Target8086ISel.cpp
+│   │       └── Target8086MCInstPrinter.cpp
 │   └── Driver/
 │       └── Compiler.cpp
 │
@@ -199,19 +193,24 @@ LL1-emu8086/
 │       ├── CMakeLists.txt
 │       └── main.cpp
 │
-├── test/                       # 测试用例
-│   ├── Lex/
-│   ├── Parse/
-│   ├── Sema/
-│   ├── IRGen/
-│   ├── Opt/
-│   └── CodeGen/
+├── test/                       # 测试（仿 llvm/test/）
+│   ├── CMakeLists.txt
+│   ├── IR/         6 个测试  (Type/Value/Instruction/BB/Function/IRBuilder)
+│   ├── Lex/        1 个测试  (Lexer)
+│   ├── AST/        1 个测试  (AST)
+│   ├── Parse/      1 个测试  (Parser)
+│   ├── Sema/       1 个测试  (Sema)
+│   ├── IRGen/      1 个测试  (IRGen)
+│   ├── CodeGen/    5 个测试  (CodeGen + Register + MO + SDAG + NewPipeline)
+│   ├── Integration/ 1 个测试 (E2E)
+│   ├── passdemo/   Pass 演示: 源码 + 逐 Pass IR dump + summary
+│   ├── bubbletest/ 冒泡排序: 源码 + 逐 Pass IR dump + summary
+│   └── asm/        汇编器测试数据
 │
-└── examples/                   # 示例程序
-    ├── basic.ll1
-    ├── if_else.ll1
-    ├── while_loop.ll1
-    └── function.ll1
+└── examples/                   # 9 个示例程序
+    ├── basic.ll1, loop.ll1, io_test.ll1
+    ├── array_test.ll1, bubble_sort.ll1, func_call.ll1
+    ├── for_test.ll1, break_test.ll1, char_test.ll1
 ```
 
 ---
@@ -793,87 +792,210 @@ void addDefaultPasses(FunctionPassManager &FPM) {
 
 ---
 
-## 10. 后端设计（可扩展 Target 体系）
+## 10. 后端设计（可扩展 Target 体系 + 双管线架构）
 
-### 10.1 数据流
+### 10.0 双管线概述
+
+编译器后端提供两条管线，通过 CLI 标志切换：
+
+| 管线 | 标志 | 流程 |
+|------|------|------|
+| **旧管线** | `--opt` 或无标志 | IR → 直接 emit 8086 文本（CodeGen.cpp） |
+| **新管线** | `--new-codegen` | IR → SDBuilder → SelectionDAG → ISel → RegAlloc → Printer |
+
+新管线仿 LLVM 后端架构，实现完整的 Machine IR 流水线。
+
+### 10.1 新管线架构
 
 ```
-LLVM IR (Module, Function, BasicBlock, Instruction)
-    │
-    ▼
-┌─────────────────────────────┐
-│  ISelLowering               │  ← Target 无关框架
-│  遍历IR指令                 │
-│  调用 TargetInstrInfo 匹配  │  ← Target 相关
-│  生成 MIR (MCInst序列)      │
-└────────────┬────────────────┘
-             │ MIR (MachineFunction + MachineBasicBlock)
-             ▼
-┌─────────────────────────────┐
-│  MachineScheduler (占位)    │  ← 后续扩展，不填充
-└────────────┬────────────────┘
-             ▼
-┌─────────────────────────────┐
-│  RegAlloc (线性扫描)         │  ← Target 无关
-│  虚拟寄存器 → 物理寄存器    │
-│  处理 spill/reload           │  ← 使用 TargetRegisterInfo
-└────────────┬────────────────┘
-             │ 分配完成后的 MIR
-             ▼
-┌─────────────────────────────┐
-│  AsmEmitter                  │
-│  MCInst → 文本汇编输出      │  ← Target 相关 (语法差异)
-└────────────┬────────────────┘
-             │
-             ▼
-        .asm 文件
+LLVM IR (优化后)
+  │
+  ▼
+SelectionDAGBuilder::visit(Function)    ← IR → DAG 转换
+  │  为每个 IR 指令创建 SDNode
+  │  alloca → FrameIndex
+  │  Phi → CopyFromReg/CopyToReg (COPY-based 消除)
+  ▼
+SelectionDAG                             ← DAG 中间表示
+  │  SDNode + SDValue + chain token (内存顺序)
+  ▼
+Target8086ISel::runOnFunction()         ← 指令选择
+  │  模式匹配: ISD::ADD → MCOpcode::ADD
+  │  输出 MachineInstr 到 MachineBasicBlock
+  │  MBB 标签: FunctionName_BBName_Index (全局唯一)
+  ▼
+MachineFunction                          ← Machine IR
+  │  MachineInstr + MachineOperand (5 种类型)
+  │  Virtual Registers (bit 31 = 1)
+  ▼
+LinearScanRegAlloc::run()               ← 寄存器分配
+  │  LiveInterval 分析 → 分配 physreg (AX/CX/DX)
+  │  Spill/Reload → 生成 MOV 指令
+  │  COPY 合并 (src/dst 同 physreg → 消除)
+  ▼
+Target8086MCInstPrinter::print()        ← 汇编打印
+  │  MachineInstr → 8086 文本
+  │  RET 指令嵌入 epilogue (mov sp,bp; pop bp)
+  ▼
+8086 .asm
 ```
 
-### 10.2 Target 抽象
+### 10.2 核心数据结构
+
+#### Register (虚拟寄存器系统)
 
 ```cpp
+using Register = uint32_t;
+constexpr Register NoRegister = 0xFFFFFFFF;
+
+// 物理寄存器 (bit 31 = 0): 编号 1..N
+// 虚拟寄存器 (bit 31 = 1): vreg_index + 0x80000000
+inline bool isVirtualRegister(Register r) { return r & 0x80000000; }
+inline bool isPhysicalRegister(Register r) { return r > 0 && r < 0x80000000; }
+
+// 8086 物理寄存器
+namespace X86 { constexpr Register AX=1, CX=2, DX=3, BX=4, SP=5, BP=6, SI=7, DI=8; }
+```
+
+#### MachineOperand（5 种类型）
+
+```cpp
+enum class MachineOperandType : uint8_t {
+    MO_Register,          // 虚拟/物理寄存器
+    MO_Immediate,         // 立即数
+    MO_FrameIndex,        // 栈帧槽索引
+    MO_MachineBasicBlock, // 目标基本块
+    MO_ExternalSymbol     // 外部符号 (__print, __read)
+};
+
+struct MachineOperand {
+    MachineOperandType Type;
+    union {
+        Register Reg;
+        int64_t Imm;
+        int FrameIdx;
+        MachineBasicBlock *MBB;
+        const char *Symbol;
+    };
+    bool IsDef = false;   // 定义操作数
+    bool IsDead = false;  // 死操作数
+    bool IsKill = false;  // 最后使用
+};
+```
+
+#### MachineInstr（30 种 MCOpcode）
+
+```cpp
+// X-macro 定义
+#define LL1_MC_OPCODES \
+    X(RET) X(JMP) X(JE) X(JNE) X(JL) X(JLE) X(JG) X(JGE) \
+    X(MOV) X(ADD) X(SUB) X(MUL) X(DIV) \
+    X(AND) X(OR) X(XOR) X(SHL) X(SHR) \
+    X(CMP) X(PUSH) X(POP) X(CALL) X(COPY) \
+    X(MOVZX) X(LEA) X(NOP) X(NOT) X(NEG) X(INC) X(DEC)
+
+struct MachineInstr {
+    MCOpcode Opcode;
+    std::vector<MachineOperand> Operands;
+    MachineBasicBlock *Parent = nullptr;
+};
+```
+
+#### SelectionDAG
+
+```cpp
+// 29 个 ISD 操作码
+enum class ISD : uint16_t {
+    ADD, SUB, MUL, SDIV, SREM,
+    AND, OR, XOR, SHL, SHR,
+    SIGN_EXTEND, ZERO_EXTEND, TRUNCATE,
+    SETCC, BR, BR_CC, RET,
+    LOAD, STORE, CALL,
+    CopyFromReg, CopyToReg,
+    Constant, FrameIndex,
+    TokenFactor, EntryToken,
+    BasicBlock, ExternalSymbol
+};
+
+// SDNode: BumpPtrAllocator 分配
+struct SDNode {
+    ISD Opc;
+    SDNodeFlags Flags;      // NSW, NUW, Exact
+    uint16_t NumOperands;
+    uint16_t NumResults;
+    Payload payload;        // ConstVal | FrameIdx | RegNum | CallCallee | TargetMBB | CmpPred
+    SDUse *OperandList;     // trailing objects
+};
+
+// SDValue = {SDNode*, ResNo} — 轻量级 DAG 引用
+struct SDValue {
+    SDNode *Node;
+    unsigned ResNo;
+};
+```
+
+### 10.3 Target 抽象体系
+
+```cpp
+// 工厂类
+class TargetMachine {
+    virtual TargetRegisterInfo &getRegisterInfo() = 0;
+    virtual TargetInstrInfo &getInstrInfo() = 0;
+    virtual TargetLowering &getTargetLowering() = 0;
+};
+
+// 寄存器描述
 class TargetRegisterInfo {
-public:
-    virtual unsigned getNumRegs() const = 0;
-    virtual std::string getRegName(unsigned reg) const = 0;
-    virtual unsigned getRegClass(unsigned reg) const = 0;  // GP/SEG/...
-    virtual bool isAllocatable(unsigned reg) const = 0;
+    virtual const std::vector<Register> &getAllocatableRegs() const = 0;
+    virtual const TargetRegisterClass *getRegClass(Register r) const = 0;
+    virtual std::string getName(Register r) const = 0;
 };
 
+// 指令信息
 class TargetInstrInfo {
-public:
-    virtual bool match(Instruction *I, MCInst &MI) const = 0;
-    virtual std::string getInstName(unsigned opcode) const = 0;
+    virtual void genLoad(MachineBasicBlock &MBB, Register Dest, int FrameIdx) = 0;
+    virtual void genStore(MachineBasicBlock &MBB, Register Src, int FrameIdx) = 0;
+};
+
+// 操作合法化
+class TargetLowering {
+    enum LegalizeAction { Legal, Expand, Custom };
+    void setOperationAction(ISD op, LegalizeAction action);
 };
 ```
 
-### 10.3 8086 目标
+### 10.4 8086 目标实现
 
-**寄存器**: AX, BX, CX, DX, SI, DI, BP, SP, CS, DS, ES, SS
+- **Target8086RegisterInfo**: GR16_ABCD 可分配类 (AX/CX/DX)，BX/BP/SI/DI 保留
+- **Target8086ISel**: 手写模式匹配（无 TableGen），BR_CC predicate → Jcc 映射
+- **Target8086MCInstPrinter**: MachineInstr → 8086 汇编文本
+- **调用约定**: cdecl (push args R→L, caller cleanup `add sp, N*2`)
 
-**支持的 8086 指令（MVP）**:
+### 10.5 寄存器分配器
 
-```
-MOV  r,r | r,imm | r,m | m,r
-ADD  r,r | r,imm
-SUB  r,r | r,imm
-MUL  r
-DIV  r
-CMP  r,r | r,imm
-JMP  label
-JE   label
-JNE  label
-JL   label
-JG   label
-JLE  label
-JGE  label
-CALL label
-RET
-PUSH r
-POP  r
+```cpp
+class LinearScanRegAlloc {
+    void run(MachineFunction &MF, const TargetRegisterInfo &TRI);
+private:
+    void computeLiveIntervals(MF);   // 预扫描: 记录每个 vreg 的 last-use
+    Register allocate(Register VReg);// 分配: free→分配; 否则 spill furthest-use
+    void spill(Register PhysReg);    // 生成 MOV [bx+N], PhysReg
+    Register reload(Register VReg);  // 生成 MOV VReg, [bx+N]
+};
 ```
 
-### 10.4 扩展路径
+**分配策略**: Next-Use 启发式。FreeRegs = {AX, CX, DX}。寄存器不足时溢出 next-use 最远的 vreg。
+
+### 10.6 Phi 消除策略对比
+
+| 策略 | 旧管线 (PhiElimination) | 新管线 (SDBuilder) |
+|------|--------------------------|---------------------|
+| 方法 | Phi → alloca + store + load | Phi → CopyFromReg + CopyToReg |
+| 中间步骤 | 内存操作 | 虚拟寄存器 COPY |
+| 寄存器分配 | 处理 alloca/load/store | 合并 COPY（同 physreg → 消除） |
+| 效率 | 内存回退开销 | 更接近 LLVM 实现 |
+
+### 10.7 扩展路径
 
 未来添加 RISC-V 后端时，只需新建：
 
@@ -882,14 +1004,15 @@ include/ll1/CodeGen/TargetRISCV/
 ├── TargetRISCV.h
 ├── TargetRISCVRegisterInfo.h    # x0-x31
 ├── TargetRISCVInstrInfo.h       # RV32I 指令集
-├── TargetRISCVISelLowering.h
-└── TargetRISCVAsmEmitter.h
+├── TargetRISCVLowering.h
+├── TargetRISCVISel.h
+└── TargetRISCVMCInstPrinter.h
 
 lib/CodeGen/TargetRISCV/
 └── (对应 .cpp 实现)
 ```
 
-无需修改 ISelLowering 框架、RegAlloc、PassManager 任何代码。
+无需修改 SelectionDAG 框架、RegAlloc、PassManager 任何代码。
 
 ---
 
@@ -959,7 +1082,7 @@ ret            // 返回
   ✓ if/else
   ✓ while 循环
   ✗ 函数调用 (使用单一 main)
-  ✗ 优化 Pass
+  ✓ 优化 Pass (New-PM 风格, 6 Passes)
   ✗ 寄存器分配 (直接栈映射)
 ```
 
@@ -981,6 +1104,11 @@ ret            // 返回
 ```
   ✓ 8086 后端完善 (完整指令覆盖)
   ✓ GVN / DCE Pass
+  ✓ Reassociate Pass
+  ✓ PassBuilder + Driver 集成
+  ✓ New-PM 风格 Pass 管线 (AnalysisManager + PreservedAnalyses)
+  ✓ DominatorTree 分析
+  ✓ CLI --opt 标志
   ✓ for 循环
   ✓ break / continue
   ✓ 多源文件? (可选)
@@ -1025,17 +1153,18 @@ Step 9: Opt (PassManager + 各 Pass)
 
 ## 14. MVP 实现结果
 
-> 实现日期: 2026-06-19（初版），2026-06-21（更新）
+> 实现日期: 2026-06-19（初版），2026-06-21（更新），2026-06-22（Machine IR 后端）
 
 ### 项目统计
 
 | 指标 | 数值 |
 |------|------|
-| 源文件数 (.h/.cpp) | 50 |
-| 总代码行数 | ~5,046 |
-| 单元测试 | 13 (100% passing) |
-| Git commits | 30 |
-| 模块数 | 9 (Lex, Parse, AST, Sema, IR, IRGen, Opt, CodeGen, Driver) |
+| 头文件 (.h) | 50 |
+| 源文件 (.cpp) | 44（库 39 + 入口 1 + 测试 17） |
+| 总代码行数 | ~10,800（库/工具）+ ~1,200（测试） |
+| 单元测试 | 17 (100% passing) |
+| Git commits | 50+ |
+| CMake 模块 | 12 (Lex, Parse, AST, Sema, IR, IRGen, Opt, CodeGen, CodeGenSDG, Driver, ll1c, Test) |
 
 ### 已实现功能
 
@@ -1047,13 +1176,21 @@ Step 9: Opt (PassManager + 各 Pass)
 | 3 | AST (Decl/Stmt/Expr 继承体系) | ✅ | 1 |
 | 4 | Parser (LL(1) 递归下降) | ✅ | 1 |
 | 5 | Sema (Scope + SymbolTable + 类型检查) | ✅ | 1 |
-| 6 | IRGen (AST → LLVM IR) | ✅ | 1 |
-| 7 | CodeGen (IR → 8086 汇编, [BX+SI] 数组寻址) | ✅ | 1 |
+| 6 | IRGen (AST → LLVM IR, 全语言特性) | ✅ | 1 |
+| 7 | CodeGen 旧管线 (IR → 8086 直接文本) | ✅ | 1 |
 | 8 | Driver (全管线编排 + CLI) | ✅ | — |
 | 9 | Integration (端到端测试) | ✅ | 1 |
 | 10 | Array (整数数组, ArrayLoad/ArrayStore) | ✅ | — |
 | 11 | I/O (print + read, DOS 中断运行时) | ✅ | — |
 | 12 | IRPrinter (LLVM IR .ll 文本输出) | ✅ | — |
+| 13 | Optimizer (New-PM, 7 Passes + DomTree) | ✅ | — |
+| 14 | **Register + MachineOperand + MachineInstr** | ✅ | 2 |
+| 15 | **SelectionDAG + SDBuilder (29 ISD Opcodes)** | ✅ | 1 |
+| 16 | **Target 抽象 (TRI/TII/TLI/TargetMachine)** | ✅ | — |
+| 17 | **Target8086 ISel + MCInstPrinter** | ✅ | 1 (NewPipeline) |
+| 18 | **LinearScanRegAlloc (LiveInterval + Spill/Reload/COPY)** | ✅ | — |
+| 19 | **--dump-pass-ir 永久 CLI 功能** | ✅ | — |
+| 20 | 编译流水线参考数据 (passdemo + bubbletest) | ✅ | — |
 
 ### 编译管线验证
 
@@ -1062,65 +1199,54 @@ LL1 Source (.ll1)
     → Lexer (字符流 → Token流)
     → Parser (Token流 → AST, 递归下降)
     → Sema (符号表 + 类型检查, 两遍遍历)
-    → IRGen (AST → LLVM IR: alloca/store/load/icmp/br/ret)
-    → CodeGen (IR → 8086: stack frame + mov/add/sub/cmp/jmp/ret)
+    → IRGen (AST → LLVM IR: alloca/store/load/icmp/br/ret/phi)
+    → Optimizer (7 Passes: Mem2Reg→PhiElim→InstCombine→Reassociate→GVN→SimplifyCFG→DCE)
+    → CodeGen (双管线)
+       旧: IR → emit 8086 text (BP frame + BX base + cdecl)
+       新: IR → SDBuilder → SelectionDAG → ISel → RegAlloc → Printer
     → emu8086 兼容 .asm 文件 ✅
-```
-
-### 生成的汇编示例
-
-输入 (`examples/basic.ll1`):
-```c
-fn int main() {
-    int a = 10;
-    int b = 20;
-    if (a < b) { return b; }
-    return a;
-}
-```
-
-输出 (`basic.asm`):
-```asm
-.code
-main proc
-    push bp
-    mov  bp, sp
-    sub  sp, 4
-    mov  ax, 10
-    mov  [bp-2], ax
-    mov  bx, 20
-    mov  [bp-4], bx
-    mov  cx, [bp-2]
-    cmp  ax, [bp-4]
-    jl   .main_then
-    jmp  .main_if_end
-.main_then:
-    mov  ax, [bp-4]
-    ret
-.main_if_end:
-    mov  ax, [bp-2]
-    ret
-    mov  sp, bp
-    pop  bp
-main endp
-end
 ```
 
 ### 命令行使用
 
 ```bash
 cd build
-./tools/ll1c/ll1c.exe ../examples/basic.ll1 -o output.asm
-# Compiled examples/basic.ll1 → output.asm
+
+# 旧管线
+./tools/ll1c/ll1c.exe ../examples/func_call.ll1 -o old.asm
+./tools/ll1c/ll1c.exe ../examples/func_call.ll1 --opt -o old_opt.asm
+
+# 新 Machine IR 管线
+./tools/ll1c/ll1c.exe ../examples/func_call.ll1 --new-codegen -o new.asm
+./tools/ll1c/ll1c.exe ../examples/func_call.ll1 --new-codegen --opt -o new_opt.asm
+
+# 输出 LLVM IR
+./tools/ll1c/ll1c.exe ../examples/func_call.ll1 --emit-llvm -o output.ll
+
+# 观察每 Pass 效果
+./tools/ll1c/ll1c.exe ../test/passdemo/pass_demo.ll1 --dump-pass-ir=demo_out/
 ```
 
-### 待实现 (第二/三版)
+### 第四版实现 (Machine IR 后端, 2026-06-22)
 
-- [ ] Mem2Reg / InstCombine / SimplifyCFG / GVN / DCE Pass
-- [ ] 线性扫描寄存器分配（当前用简单轮转 AX/CX/CX）
-- [ ] for 循环的 IRGen + CodeGen
-- [ ] break / continue
-- [ ] char / bool 类型的完整 codegen
-- [ ] 函数调用的完整实现（参数传递 + 调用约定）
+- [x] Register 系统 (uint32_t, phys/vreg 区分)
+- [x] MachineOperand (5 种类型, Def/Dead/Kill 标志)
+- [x] MachineInstr (30 种 MCOpcode, X-macro 枚举)
+- [x] MachineBasicBlock + MachineFunction
+- [x] MachineRegisterInfo + MachineFrameInfo
+- [x] SelectionDAG 框架 (SDNode/SDValue, BumpPtrAllocator, 29 ISD)
+- [x] SelectionDAGBuilder (IR → DAG Visitor, Phi → COPY)
+- [x] Target 抽象 (TargetMachine, TRI, TII, TLI)
+- [x] Target8086 实现 (RegisterInfo, InstrInfo, Lowering, ISel, Printer)
+- [x] LinearScanRegAlloc (LiveInterval, Spill/Reload, COPY 合并)
+- [x] 双管线并存 (旧 CodeGen + 新 Machine IR)
+- [x] 永久 --dump-pass-ir CLI 功能
+- [x] 编译流水线参考数据 (passdemo + bubbletest)
+- [x] Mem2Reg 修复 (getPredecessors 绕开 use-chain, alloca 移除匹配 toRemove)
+
+### 待实现 (后续版本)
+
 - [ ] 多维数组
-- [ ] RISC-V 后端扩展
+- [ ] RISC-V 后端扩展（利用 Target 抽象体系）
+- [ ] 图着色寄存器分配
+- [ ] 指令调度器

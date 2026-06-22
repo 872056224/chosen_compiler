@@ -1,0 +1,71 @@
+// pass_demo.ll1 — demonstrates all 7 optimization passes
+//
+// Each section is designed to trigger a specific pass.
+// Compare adjacent IR files to see the pass effect.
+
+fn int main() {
+    // ============================================================
+    // 1) Mem2Reg: local variables → SSA phi nodes
+    //    alloca/load/store patterns become phi + register ops
+    // ============================================================
+    int sum = 0;
+    int i = 0;
+    while (i < 5) {
+        sum = sum + i;
+        i = i + 1;
+    }
+    // After Mem2Reg: sum,i become phi nodes, alloca/load/store removed
+
+    // ============================================================
+    // 2) PhiElimination: converts phi nodes back to memory ops
+    //    (needed because CodeGen doesn't handle phi instructions)
+    // ============================================================
+    // (No special source needed — phis from Mem2Reg are auto-lowered)
+
+    // ============================================================
+    // 3) InstCombine: algebraic identities + constant folding
+    // ============================================================
+    int a = 100;
+    int b = a + 0;           // x + 0 → x          (identity)
+    int c = a * 1;           // x * 1 → x          (identity)
+    int d = 20 + 30;         // 20 + 30 → 50       (constant fold)
+    int e = d - 0;           // x - 0 → x          (identity)
+    int f = a - a;           // x - x → 0          (zero fold)
+
+    // ============================================================
+    // 4) Reassociate: reorder expressions to group constants
+    // ============================================================
+    int x = 5;
+    int y = (1 + x) + 3;     // (1+5)+3 → 5+(1+3) → 5+4 → 9
+    int z = x + (2 + x);     // 5+(2+5) → (5+5)+2 → 10+2 → 12
+
+    // ============================================================
+    // 5) GVN: global value numbering — eliminate redundant expr
+    // ============================================================
+    int p = i + sum;         // computed first time
+    int q = i + sum;         // same expression → replaced by p
+    int r = p + q;           // becomes p + p after GVN
+
+    // ============================================================
+    // 6) SimplifyCFG: simplify control flow
+    // ============================================================
+    if (0 != 0) {            // constant false → branch removed
+        print(999);          // unreachable code
+    }
+    if (1 != 0) {            // constant true → unconditional
+        r = r + 1;
+    }
+
+    // ============================================================
+    // 7) DCE: dead code elimination
+    // ============================================================
+    int dead1 = 999;         // never read → removed
+    int dead2 = dead1 + 1;   // dead chain → removed
+    dead2 = dead2 * 10;      // also dead
+
+    // Output results
+    print(sum);              // sum of 0..4 = 10
+    print(r);                // after all opts
+    print(d);                // should be 50
+    return 0;
+}

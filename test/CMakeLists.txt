@@ -44,9 +44,26 @@ target_link_libraries(test_irgen PRIVATE ll1IRGen ll1Sema ll1Parse ll1Lex ll1AST
 add_test(NAME IRGen COMMAND test_irgen)
 
 add_executable(test_codegen CodeGen/test_codegen.cpp)
-target_link_libraries(test_codegen PRIVATE ll1CodeGen ll1IR)
+target_link_libraries(test_codegen PRIVATE ll1CodeGen ll1CodeGenSDK ll1IR)
 add_test(NAME CodeGen COMMAND test_codegen)
 
+# New Machine IR infrastructure tests
+add_executable(test_register CodeGen/test_register.cpp)
+target_link_libraries(test_register PRIVATE ll1CodeGenSDK ll1IR)
+add_test(NAME Register COMMAND test_register)
+
+add_executable(test_machine_operand CodeGen/test_machine_operand.cpp)
+target_link_libraries(test_machine_operand PRIVATE ll1CodeGenSDK ll1IR)
+add_test(NAME MachineOperand COMMAND test_machine_operand)
+
+add_executable(test_selection_dag CodeGen/test_selection_dag.cpp)
+target_link_libraries(test_selection_dag PRIVATE ll1CodeGenSDK ll1IR)
+add_test(NAME SelectionDAG COMMAND test_selection_dag)
+
+add_executable(test_new_pipeline CodeGen/test_new_pipeline.cpp)
+target_link_libraries(test_new_pipeline PRIVATE ll1Driver ll1Opt ll1CodeGen ll1CodeGenSDK ll1IRGen ll1Sema ll1Parse ll1Lex ll1AST ll1IR)
+add_test(NAME NewPipeline COMMAND test_new_pipeline)
+
 add_executable(test_e2e Integration/test_e2e.cpp)
-target_link_libraries(test_e2e PRIVATE ll1Driver ll1CodeGen ll1IRGen ll1Sema ll1Parse ll1Lex ll1AST ll1IR)
+target_link_libraries(test_e2e PRIVATE ll1Driver ll1Opt ll1CodeGen ll1CodeGenSDK ll1IRGen ll1Sema ll1Parse ll1Lex ll1AST ll1IR)
 add_test(NAME Integration COMMAND test_e2e)
