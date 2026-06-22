@@ -4,6 +4,7 @@
 #include <ll1/IR/Function.h>
 #include <ll1/IR/Type.h>
 #include <algorithm>
+#include <cstddef>
 #include <vector>
 
 namespace ll1 {

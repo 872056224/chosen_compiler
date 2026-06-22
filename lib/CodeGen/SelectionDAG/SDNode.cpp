@@ -1,5 +1,6 @@
 #include <ll1/CodeGen/SelectionDAG/SDNode.h>
 #include <cassert>
+#include <cstddef>
 
 namespace ll1 {
 
