@@ -735,7 +735,6 @@ std::string CodeGen::generateNewImpl(Module &mod) {
         Printer->setRegMapping(regAlloc.getMapping());
         Printer->setSpillSlots(regAlloc.getSpillSlots());
         Printer->setFrameInfo(MF.getFrameInfo());
-        Printer->setSpillSize(regAlloc.getSpillSize());
 
         // Step 6: Print assembly
         allOutput << Printer->print(MF);

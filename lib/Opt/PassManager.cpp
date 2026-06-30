@@ -7,7 +7,6 @@
 #include <ll1/Opt/Passes/GVN.h>
 #include <ll1/Opt/Passes/SimplifyCFG.h>
 #include <ll1/Opt/Passes/DCE.h>
-#include <ll1/Opt/Passes/LoopUnroll.h>
 #include <ll1/IR/LLVMContext.h>
 #include <ll1/IR/IRPrinter.h>
 #include <fstream>
@@ -101,7 +100,6 @@ ModulePassManager PassBuilder::buildDefaultPipeline() {
     FPM.addPass(Reassociate());
     FPM.addPass(GVN());
     FPM.addPass(SimplifyCFG());
-    FPM.addPass(LoopUnroll(8));  // unroll loops with trip-count <= 8
     FPM.addPass(DCSPass());
 
     ModuleToFunctionPassAdaptor adaptor(std::move(FPM));

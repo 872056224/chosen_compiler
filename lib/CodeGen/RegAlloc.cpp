@@ -1,4 +1,6 @@
 #include <ll1/CodeGen/RegAlloc.h>
+#include <algorithm>
+#include <iostream>
 
 namespace ll1 {
 
@@ -9,80 +11,87 @@ LinearScanRegAlloc::LinearScanRegAlloc(const TargetRegisterInfo &tri) : TRI(tri)
 }
 
 // ============================================================
-// Phase 1: Compute Uses/Defs per block + assign global positions
+// Phase 1: Assign global instruction positions and compute
+//          Uses/Defs for each block
 // ============================================================
-void LinearScanRegAlloc::computeBlockUsesAndDefs(MachineFunction &MF) {
-    BlockLive.clear();
+void LinearScanRegAlloc::assignPositionsAndComputeUsesDefs(MachineFunction &MF) {
+    BlockInfo.clear();
     unsigned pos = 0;
 
     for (auto &mbb : MF.getBasicBlocks()) {
-        MachineBasicBlock *B = mbb.get();
-        auto &info = BlockLive[B];
-
+        BlockLiveInfo &info = BlockInfo[mbb.get()];
         info.StartPos = pos;
-        std::set<Register> &localDefs = info.Defs;
-        unsigned instrIdx = 0;
 
-        for (auto &mi : B->getInstList()) {
+        std::set<Register> &Uses = info.Uses;
+        std::set<Register> &Defs = info.Defs;
+
+        for (auto &mi : mbb->getInstList()) {
+            std::set<Register> instDefs;
             for (unsigned i = 0; i < mi.getNumOperands(); ++i) {
                 auto &mo = mi.getOperand(i);
                 if (mo.getType() != MachineOperandType::MO_Register) continue;
-                Register vreg = mo.getReg();
-                if (!isVirtualRegister(vreg)) continue;
-
-                // Track last use position within this block
-                if (!mo.isDef()) {
-                    info.VRegLastUse[vreg] = instrIdx;
-                    if (localDefs.find(vreg) == localDefs.end()) {
-                        info.Uses.insert(vreg);
-                    }
-                } else {
-                    localDefs.insert(vreg);
+                Register reg = mo.getReg();
+                if (!isVirtualRegister(reg)) continue;
+                if (mo.isDef()) {
+                    instDefs.insert(reg);
+                    Defs.insert(reg);
                 }
             }
+
+            for (unsigned i = 0; i < mi.getNumOperands(); ++i) {
+                auto &mo = mi.getOperand(i);
+                if (mo.getType() != MachineOperandType::MO_Register) continue;
+                Register reg = mo.getReg();
+                if (!isVirtualRegister(reg)) continue;
+                if (!mo.isDef()) {
+                    if (Defs.find(reg) == Defs.end()) {
+                        Uses.insert(reg);
+                    }
+                }
+            }
+
             pos++;
-            instrIdx++;
         }
+
         info.EndPos = pos;
     }
 }
 
 // ============================================================
-// Phase 2: Solve LiveIn/LiveOut via iterative backward dataflow
+// Phase 2: Solve LiveIn/LiveOut via backward iterative dataflow
 // ============================================================
-void LinearScanRegAlloc::computeLiveInOut(MachineFunction &MF) {
-    // Initialize: LiveIn = Uses, LiveOut = {}
+void LinearScanRegAlloc::solveLiveInOut(MachineFunction &MF) {
     for (auto &mbb : MF.getBasicBlocks()) {
-        auto *B = mbb.get();
-        BlockLive[B].LiveIn = BlockLive[B].Uses;
-        BlockLive[B].LiveOut.clear();
+        BlockLiveInfo &info = BlockInfo[mbb.get()];
+        info.LiveIn = info.Uses;
+        info.LiveOut.clear();
     }
 
-    // Collect blocks in reverse order for backward iteration
-    std::vector<MachineBasicBlock*> reverseOrder;
-    auto &blocks = MF.getBasicBlocks();
-    for (auto it = blocks.rbegin(); it != blocks.rend(); ++it) {
-        reverseOrder.push_back(it->get());
-    }
-
-    // Iterate to fixpoint
     bool changed = true;
+    int iterations = 0;
     while (changed) {
         changed = false;
-        for (auto *B : reverseOrder) {
-            auto &info = BlockLive[B];
+        iterations++;
+        if (iterations > 100) {
+            std::cerr << "[regalloc] WARNING: LiveIn/LiveOut not converging\n";
+            break;
+        }
 
-            // LiveOut[B] = union of LiveIn[successors]
+        auto &blocks = MF.getBasicBlocks();
+        for (auto it = blocks.rbegin(); it != blocks.rend(); ++it) {
+            MachineBasicBlock *mbb = it->get();
+            BlockLiveInfo &info = BlockInfo[mbb];
+
             std::set<Register> newLiveOut;
-            for (auto *succ : B->getSuccessors()) {
-                auto succIt = BlockLive.find(succ);
-                if (succIt == BlockLive.end()) continue;
-                for (Register r : succIt->second.LiveIn) {
-                    newLiveOut.insert(r);
+            for (auto *succ : mbb->getSuccessors()) {
+                auto succIt = BlockInfo.find(succ);
+                if (succIt != BlockInfo.end()) {
+                    for (Register r : succIt->second.LiveIn) {
+                        newLiveOut.insert(r);
+                    }
                 }
             }
 
-            // LiveIn[B] = Uses[B] ∪ (LiveOut[B] − Defs[B])
             std::set<Register> newLiveIn = info.Uses;
             for (Register r : newLiveOut) {
                 if (info.Defs.find(r) == info.Defs.end()) {
@@ -97,77 +106,109 @@ void LinearScanRegAlloc::computeLiveInOut(MachineFunction &MF) {
             }
         }
     }
+
+    std::cerr << "[regalloc] LiveIn/LiveOut converged in " << iterations << " iterations\n";
 }
 
 // ============================================================
-// Phase 3: Build LiveRange for each vreg from block liveness
+// Phase 3: Build LiveRange for each vreg
 // ============================================================
-void LinearScanRegAlloc::computeLiveRanges(MachineFunction &MF) {
+void LinearScanRegAlloc::buildLiveRanges(MachineFunction &MF) {
     LiveRanges.clear();
 
-    // First pass: record FirstDef for every vreg
-    unsigned pos = 0;
+    std::unordered_map<Register, unsigned> defPos;
+    std::unordered_map<Register, MachineBasicBlock*> defBlock;
+    std::unordered_map<Register, std::unordered_map<MachineBasicBlock*, unsigned>> blockLastUse;
+
     for (auto &mbb : MF.getBasicBlocks()) {
+        unsigned blockStart = BlockInfo[mbb.get()].StartPos;
+        unsigned pos = blockStart;
+
         for (auto &mi : mbb->getInstList()) {
             for (unsigned i = 0; i < mi.getNumOperands(); ++i) {
                 auto &mo = mi.getOperand(i);
                 if (mo.getType() != MachineOperandType::MO_Register) continue;
-                Register vreg = mo.getReg();
-                if (!isVirtualRegister(vreg)) continue;
+                Register reg = mo.getReg();
+                if (!isVirtualRegister(reg)) continue;
 
-                auto &lr = LiveRanges[vreg];
-                if (mo.isDef()) lr.FirstDef = pos;
-                lr.LastUse = pos;
+                if (mo.isDef()) {
+                    if (defPos.find(reg) == defPos.end()) {
+                        defPos[reg] = pos;
+                        defBlock[reg] = mbb.get();
+                    }
+                } else {
+                    blockLastUse[reg][mbb.get()] = pos;
+                }
             }
             pos++;
         }
     }
 
-    // Second pass: extend liveness using LiveIn/LiveOut sets
-    for (auto &kv : BlockLive) {
-        MachineBasicBlock *B = kv.first;
-        auto &info = kv.second;
+    for (auto &kv : defPos) {
+        Register reg = kv.first;
+        LiveRange &lr = LiveRanges[reg];
+        lr.FirstDef = kv.second;
+        lr.LastUse = kv.second;
 
-        // For each vreg live-in to this block, extend its range to block start
-        for (Register vreg : info.LiveIn) {
-            auto lrIt = LiveRanges.find(vreg);
-            if (lrIt == LiveRanges.end()) continue;
-            // The vreg is needed at block entry → range must cover block start
-            lrIt->second.LastUse = std::max(lrIt->second.LastUse, info.StartPos);
-        }
+        MachineBasicBlock *defB = defBlock[reg];
 
-        // For each vreg live-out, extend its range to block end
-        for (Register vreg : info.LiveOut) {
-            auto lrIt = LiveRanges.find(vreg);
-            if (lrIt == LiveRanges.end()) continue;
-            // The vreg is needed after block exit → range must cover block end
-            lrIt->second.LastUse = std::max(lrIt->second.LastUse, info.EndPos);
+        for (auto &bi : BlockInfo) {
+            MachineBasicBlock *mbb = bi.first;
+            const BlockLiveInfo &info = bi.second;
+
+            bool liveInBlock = false;
+            if (info.LiveIn.find(reg) != info.LiveIn.end()) liveInBlock = true;
+            if (mbb == defB) liveInBlock = true;
+            if (info.LiveOut.find(reg) != info.LiveOut.end()) liveInBlock = true;
+
+            if (liveInBlock) {
+                auto useIt = blockLastUse.find(reg);
+                if (useIt != blockLastUse.end()) {
+                    auto blockUseIt = useIt->second.find(mbb);
+                    if (blockUseIt != useIt->second.end()) {
+                        lr.LastUse = std::max(lr.LastUse, blockUseIt->second);
+                    }
+                }
+                // Extend to end of block if live-out (forces register preservation)
+                if (info.LiveOut.find(reg) != info.LiveOut.end()) {
+                    lr.LastUse = std::max(lr.LastUse, info.EndPos - 1);
+                }
+            }
         }
     }
 }
 
 // ============================================================
-// getSpillSlot — allocate a spill slot for a vreg
+// Spill slot management — uses MachineFrameInfo::CreateStackObject
 // ============================================================
 int LinearScanRegAlloc::getSpillSlot(Register VReg) {
     auto it = SpillSlots.find(VReg);
     if (it != SpillSlots.end()) return it->second;
-    int off = NextSpillSlot;
-    NextSpillSlot += 2;
-    MaxSpillOffset = std::max(MaxSpillOffset, off);
-    SpillSlots[VReg] = off;
-    return off;
+
+    if (!MF) return -1;
+
+    int fi = MF->getFrameInfo().CreateStackObject(2, 2, false, 0);
+    SpillSlots[VReg] = fi;
+    return fi;
+}
+
+int LinearScanRegAlloc::getSpillSize() const {
+    return 0;
 }
 
 // ============================================================
-// allocate — get a physreg for a vreg (evict if needed)
+// Allocate — prefer evicting non-LiveOut registers
 // ============================================================
-Register LinearScanRegAlloc::allocate(Register VReg, unsigned currentPos) {
+Register LinearScanRegAlloc::allocate(Register VReg, unsigned currentPos,
+                                       const std::set<Register> *liveOut) {
     auto it = V2P.find(VReg);
     if (it != V2P.end()) return it->second;
 
+    unsigned lastUse = UINT32_MAX;
     auto lrIt = LiveRanges.find(VReg);
-    unsigned lastUse = lrIt != LiveRanges.end() ? lrIt->second.LastUse : currentPos;
+    if (lrIt != LiveRanges.end() && lrIt->second.valid()) {
+        lastUse = lrIt->second.LastUse;
+    }
 
     if (!FreeRegs.empty()) {
         Register phys = FreeRegs.back();
@@ -177,48 +218,57 @@ Register LinearScanRegAlloc::allocate(Register VReg, unsigned currentPos) {
         return phys;
     }
 
-    // Evict the register with furthest last use
-    Register evictPhys = Occupied.begin()->first;
+    // All registers occupied — evict one
+    // First choice: a register whose vreg is NOT LiveOut (won't need reload soon)
+    // Second choice: the register with furthest last use
+    Register evictPhys = NoRegister;
+    Register evictNonLiveOut = NoRegister;
     unsigned furthestUse = 0;
+    unsigned furthestNonLiveOutUse = 0;
+
     for (auto &kv : Occupied) {
+        bool nonLiveOut = liveOut && liveOut->find(kv.second.VReg) == liveOut->end();
+        if (nonLiveOut && kv.second.LastUse > furthestNonLiveOutUse) {
+            furthestNonLiveOutUse = kv.second.LastUse;
+            evictNonLiveOut = kv.first;
+        }
         if (kv.second.LastUse > furthestUse) {
             furthestUse = kv.second.LastUse;
             evictPhys = kv.first;
         }
     }
 
-    spill(evictPhys);
+    // Prefer non-LiveOut registers
+    if (evictNonLiveOut != NoRegister) {
+        evictPhys = evictNonLiveOut;
+    }
 
-    // Now allocate the freed register
+    if (evictPhys == NoRegister) {
+        if (!Occupied.empty()) {
+            evictPhys = Occupied.begin()->first;
+        } else {
+            evictPhys = X86::AX;
+        }
+    }
+
+    spill(evictPhys);
+    // spill() adds evictPhys to FreeRegs, but we're immediately reusing it.
+    // Remove it from FreeRegs to prevent double-allocation.
+    if (!FreeRegs.empty() && FreeRegs.back() == evictPhys) {
+        FreeRegs.pop_back();
+    }
     V2P[VReg] = evictPhys;
     Occupied[evictPhys] = {VReg, lastUse};
     return evictPhys;
 }
 
-// ============================================================
-// freeDeadRegs
-// ============================================================
-void LinearScanRegAlloc::freeDeadRegs(unsigned currentPos, unsigned instrIdx) {
+void LinearScanRegAlloc::freeDeadRegs(unsigned currentPos,
+                                       const std::set<Register> *liveOut) {
     std::vector<Register> toFree;
-    auto &blockInfo = BlockLive[CurBlock];
     for (auto &kv : Occupied) {
-        Register vreg = kv.second.VReg;
-        bool hasFutureUse = false;
-        // Check VRegLastUse: does this vreg have uses later in this block?
-        auto lastUseIt = blockInfo.VRegLastUse.find(vreg);
-        if (lastUseIt != blockInfo.VRegLastUse.end() && lastUseIt->second >= instrIdx) {
-            hasFutureUse = true;
-        }
-        // Check LiveOut: does this vreg flow to successors?
-        if (blockInfo.LiveOut.find(vreg) != blockInfo.LiveOut.end()) {
-            hasFutureUse = true;
-        }
-        // Also check global position-based liveness
-        auto lrIt = LiveRanges.find(vreg);
-        if (!hasFutureUse && lrIt != LiveRanges.end() && lrIt->second.LastUse >= currentPos) {
-            hasFutureUse = true;
-        }
-        if (!hasFutureUse) {
+        // Never free a register whose vreg is LiveOut of this block
+        if (liveOut && liveOut->find(kv.second.VReg) != liveOut->end()) continue;
+        if (kv.second.LastUse != UINT32_MAX && kv.second.LastUse < currentPos) {
             toFree.push_back(kv.first);
         }
     }
@@ -228,9 +278,6 @@ void LinearScanRegAlloc::freeDeadRegs(unsigned currentPos, unsigned instrIdx) {
     }
 }
 
-// ============================================================
-// spill
-// ============================================================
 void LinearScanRegAlloc::spill(Register PhysReg) {
     auto it = Occupied.find(PhysReg);
     if (it == Occupied.end()) return;
@@ -238,114 +285,110 @@ void LinearScanRegAlloc::spill(Register PhysReg) {
     Register vreg = it->second.VReg;
     getSpillSlot(vreg);
     PendingSpillStores.push_back({vreg, PhysReg});
-    EvictedPhysRegs[vreg] = PhysReg;  // remember which physreg was evicted
     V2P.erase(vreg);
     Occupied.erase(it);
     FreeRegs.push_back(PhysReg);
     Spills++;
 }
 
-// ============================================================
-// tryCoalesceCopy
-// ============================================================
+Register LinearScanRegAlloc::reload(Register VReg) {
+    return allocate(VReg, 0, nullptr);
+}
+
 bool LinearScanRegAlloc::tryCoalesceCopy(MachineInstr &MI) {
     if (MI.getOpcode() != MCOpcode::COPY) return false;
     if (MI.getNumOperands() < 2) return false;
     Register dst = MI.getOperand(0).getReg();
     Register src = MI.getOperand(1).getReg();
-    auto dstIt = V2P.find(dst);
+
     auto srcIt = V2P.find(src);
-    if (dstIt != V2P.end() && srcIt != V2P.end() && dstIt->second == srcIt->second) {
-        CopyEliminated++;
-        return true;
-    }
-    return false;
+    if (srcIt == V2P.end()) return false;
+
+    Register srcPhys = srcIt->second;
+    V2P[dst] = srcPhys;
+    CopyEliminated++;
+    return true;
 }
 
 // ============================================================
 // run — main entry point
 // ============================================================
 void LinearScanRegAlloc::run(MachineFunction &MF) {
-    // Phase 1-3: Dataflow liveness
-    computeBlockUsesAndDefs(MF);
-    computeLiveInOut(MF);
-    computeLiveRanges(MF);
+    this->MF = &MF;
 
-    // Phase 4: Linear scan allocation
+    assignPositionsAndComputeUsesDefs(MF);
+    solveLiveInOut(MF);
+    buildLiveRanges(MF);
+
     FreeRegs.clear();
     for (auto reg : TRI.getAllocatableRegs()) FreeRegs.push_back(reg);
     Occupied.clear();
     V2P.clear();
     SpillSlots.clear();
     PendingSpillStores.clear();
-    EvictedPhysRegs.clear();
-    FrameSize = MF.getFrameInfo().getStackSize();
-    NextSpillSlot = FrameSize;
-    MaxSpillOffset = FrameSize;
     CopyEliminated = 0;
     Spills = 0;
 
-    unsigned pos = 0;
+    // --- Phase 4: Linear scan with spill/reload ---
     for (auto &mbb : MF.getBasicBlocks()) {
-        CurBlock = mbb.get();
         auto &insts = mbb->getInstList();
-        unsigned instrIdx = 0;
-        for (auto it = insts.begin(); it != insts.end(); ) {
-            MachineInstr &mi = *it;
+        unsigned blockStart = BlockInfo[mbb.get()].StartPos;
+        unsigned pos = blockStart;
+        const std::set<Register> &liveOut = BlockInfo[mbb.get()].LiveOut;
 
-            // Update LiveRanges for all vregs in this instruction
-            for (unsigned i = 0; i < mi.getNumOperands(); ++i) {
-                auto &mo = mi.getOperand(i);
-                if (mo.getType() == MachineOperandType::MO_Register) {
-                    Register vreg = mo.getReg();
-                    if (isVirtualRegister(vreg)) {
-                        auto lrIt = LiveRanges.find(vreg);
-                        if (lrIt != LiveRanges.end()) {
-                            lrIt->second.LastUse = pos;
-                        }
-                    }
+        // At block entry, reload any LiveIn vregs that were spilled
+        // (needed for loop back-edges)
+        const std::set<Register> &liveIn = BlockInfo[mbb.get()].LiveIn;
+        for (auto it = insts.begin(); it != insts.end(); ) {
+            // Only insert reloads at the very beginning (before first real instr)
+            MachineInstr &mi = *it;
+            if (mi.isCopy()) { ++it; continue; }
+            // Found first real instruction — insert reloads before it
+            bool inserted = false;
+            for (Register vreg : liveIn) {
+                auto spillIt = SpillSlots.find(vreg);
+                if (spillIt != SpillSlots.end() && V2P.find(vreg) == V2P.end()) {
+                    Register phys = allocate(vreg, blockStart, &liveOut);
+                    MachineInstr reloadMI(MCOpcode::MOV);
+                    reloadMI.addReg(phys, true);
+                    reloadMI.addFrameIndex(spillIt->second);
+                    it = insts.insert(it, std::move(reloadMI));
+                    ++it;
+                    // NOTE: do not increment pos — inserted instructions
+                    // use the position of the following original instruction
+                    inserted = true;
                 }
             }
+            if (inserted) {
+                // After inserting reloads, `it` points past them.
+                // Need to continue to the real instruction.
+                // But the real instruction is now after the reloads.
+                // Just break out and let the main loop handle it.
+            }
+            break;
+        }
 
-            freeDeadRegs(pos, instrIdx);
+        for (auto it = insts.begin(); it != insts.end(); ) {
+            MachineInstr &mi = *it;
+            freeDeadRegs(pos, &liveOut);
 
-            // COPY coalescing
             if (mi.isCopy() && tryCoalesceCopy(mi)) {
                 it = insts.erase(it);
                 pos++;
                 continue;
             }
 
-            // Reload spilled USE operands BEFORE this instruction
+            // Allocate DEF operands first (may trigger spills)
             for (unsigned i = 0; i < mi.getNumOperands(); ++i) {
                 auto &mo = mi.getOperand(i);
                 if (mo.getType() != MachineOperandType::MO_Register) continue;
-                if (mo.isDef()) continue;
+                if (!mo.isDef()) continue;
                 Register vreg = mo.getReg();
                 if (!isVirtualRegister(vreg)) continue;
-
-                auto spillIt = SpillSlots.find(vreg);
-                if (spillIt != SpillSlots.end()) {
-                    Register phys = allocate(vreg, pos);
-                    MachineInstr reloadMI(MCOpcode::MOV);
-                    reloadMI.addReg(phys, true);
-                    reloadMI.addFrameIndex(spillIt->second);
-                    it = insts.insert(it, std::move(reloadMI));
-                    ++it;
-                    pos++;
-                }
+                        Register phys = allocate(vreg, pos, &liveOut);
             }
 
-            // Allocate registers for ALL vreg operands
-            for (unsigned i = 0; i < mi.getNumOperands(); ++i) {
-                auto &mo = mi.getOperand(i);
-                if (mo.getType() != MachineOperandType::MO_Register) continue;
-                Register vreg = mo.getReg();
-                if (!isVirtualRegister(vreg)) continue;
-                allocate(vreg, pos);
-            }
-
-            // Emit spill stores BEFORE this instr (register about to be clobbered)
+            // Emit spill stores BEFORE this instruction
             while (!PendingSpillStores.empty()) {
                 auto pending = PendingSpillStores.back();
                 PendingSpillStores.pop_back();
@@ -358,7 +401,59 @@ void LinearScanRegAlloc::run(MachineFunction &MF) {
                 storeMI.addReg(phys);
                 it = insts.insert(it, std::move(storeMI));
                 ++it;
-                pos++;
+                // NOTE: do not increment pos — inserted instructions
+                // share the position of the following original instruction
+            }
+
+            // Reload spilled USE operands
+            for (unsigned i = 0; i < mi.getNumOperands(); ++i) {
+                auto &mo = mi.getOperand(i);
+                if (mo.getType() != MachineOperandType::MO_Register) continue;
+                if (mo.isDef()) continue;
+                Register vreg = mo.getReg();
+                if (!isVirtualRegister(vreg)) continue;
+
+                auto spillIt = SpillSlots.find(vreg);
+                if (spillIt != SpillSlots.end()) {
+                    Register phys = allocate(vreg, pos, &liveOut);
+                    MachineInstr reloadMI(MCOpcode::MOV);
+                    reloadMI.addReg(phys, true);
+                    reloadMI.addFrameIndex(spillIt->second);
+                    it = insts.insert(it, std::move(reloadMI));
+                    ++it;
+                    // NOTE: do not increment pos — inserted instructions
+                    // share the position of the following original instruction
+                }
+            }
+
+            // Allocate remaining USE operands
+            for (unsigned i = 0; i < mi.getNumOperands(); ++i) {
+                auto &mo = mi.getOperand(i);
+                if (mo.getType() != MachineOperandType::MO_Register) continue;
+                if (mo.isDef()) continue;
+                Register vreg = mo.getReg();
+                if (!isVirtualRegister(vreg)) continue;
+                auto spillIt = SpillSlots.find(vreg);
+                if (spillIt != SpillSlots.end()) continue;
+                Register phys = allocate(vreg, pos, &liveOut);
+                (void)phys;
+            }
+
+            // Emit any remaining spill stores (also share original instruction pos)
+            while (!PendingSpillStores.empty()) {
+                auto pending = PendingSpillStores.back();
+                PendingSpillStores.pop_back();
+                Register vreg = pending.first;
+                Register phys = pending.second;
+                auto spillIt = SpillSlots.find(vreg);
+                if (spillIt == SpillSlots.end()) continue;
+                MachineInstr storeMI(MCOpcode::MOV);
+                storeMI.addFrameIndex(spillIt->second);
+                storeMI.addReg(phys);
+                it = insts.insert(it, std::move(storeMI));
+                ++it;
+                // NOTE: do not increment pos — inserted instructions
+                // share the position of the following original instruction
             }
 
             // Rewrite virtual registers → physical
@@ -377,33 +472,11 @@ void LinearScanRegAlloc::run(MachineFunction &MF) {
 
             ++it;
             pos++;
-            instrIdx++;
         }
     }
 
-    // Post-pass: insert reloads at block entries for LiveIn vregs that were evicted.
-    // Reload into the SAME physreg that was evicted, so uses already rewritten
-    // to that physreg will pick up the correct value on loop back-edge.
-    for (auto &mbb : MF.getBasicBlocks()) {
-        auto *B = mbb.get();
-        auto liveIt = BlockLive.find(B);
-        if (liveIt == BlockLive.end()) continue;
-
-        auto instIt = B->getInstList().begin();
-        for (Register vreg : liveIt->second.LiveIn) {
-            auto spillIt = SpillSlots.find(vreg);
-            if (spillIt == SpillSlots.end()) continue;
-            auto evictIt = EvictedPhysRegs.find(vreg);
-            if (evictIt == EvictedPhysRegs.end()) continue;
-            Register origPhys = evictIt->second;
-            // Emit: MOV origPhys, [spillSlot]
-            MachineInstr reloadMI(MCOpcode::MOV);
-            reloadMI.addReg(origPhys, true);
-            reloadMI.addFrameIndex(spillIt->second);
-            instIt = B->getInstList().insert(instIt, std::move(reloadMI));
-            ++instIt;
-        }
-    }
+    std::cerr << "[regalloc] " << MF.getName() << ": " << Spills << " spills, "
+              << CopyEliminated << " copies coalesced\n";
 }
 
 } // namespace ll1

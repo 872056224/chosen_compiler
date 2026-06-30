@@ -109,6 +109,15 @@ std::string Target8086MCInstPrinter::print(const MachineInstr &MI) {
     case MCOpcode::MOVZX:
     case MCOpcode::MOVSX: {
         std::string mnemonic = (opc == MCOpcode::MOVZX || opc == MCOpcode::MOVSX) ? "mov" : "mov";
+
+        // Peephole: skip no-op MOV reg, reg (same src and dest register)
+        if (MI.getNumOperands() >= 2 &&
+            MI.getOperand(0).getType() == MachineOperandType::MO_Register &&
+            MI.getOperand(1).getType() == MachineOperandType::MO_Register &&
+            MI.getOperand(0).getReg() == MI.getOperand(1).getReg()) {
+            return "";
+        }
+
         // 3-operand indexed addressing: (Reg, FI, IndexReg) or (FI, IndexReg, SrcReg)
         if (MI.getNumOperands() >= 3) {
             auto &op0 = MI.getOperand(0);
@@ -213,16 +222,15 @@ std::string Target8086MCInstPrinter::printPrologue(const MachineFunction &MF) {
     std::ostringstream prologue;
 
     int localSize = MF.getFrameInfo().getStackSize();
-    int totalSize = localSize + SpillSize;
 
     prologue << "    push bp\n";
     prologue << "    mov  bp, sp\n";
-    if (totalSize > 0) {
-        prologue << "    sub  sp, " << totalSize << "\n";
+    if (localSize > 0) {
+        prologue << "    sub  sp, " << localSize << "\n";
     }
     prologue << "    mov  bx, bp\n";
-    if (totalSize > 0) {
-        prologue << "    sub  bx, " << totalSize << "\n";
+    if (localSize > 0) {
+        prologue << "    sub  bx, " << localSize << "\n";
     }
 
     return prologue.str();

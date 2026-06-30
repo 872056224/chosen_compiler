@@ -41,6 +41,10 @@ static bool simplifyConstantBranches(Function &F) {
 
 // ============================================================
 // Transform 3 — Simplify unconditional branch to unconditional branch
+//
+// Only when the intermediate block has NO instructions other than
+// the terminator (i.e., it's an empty forwarding block).
+// Otherwise we'd skip important instructions in the intermediate block.
 // ============================================================
 static bool simplifyUncondToUncondBranches(Function &F) {
     bool changed = false;
@@ -54,6 +58,11 @@ static bool simplifyUncondToUncondBranches(Function &F) {
 
         auto *dest = br->getUnconditionalDest();
         if (!dest || dest == bb.get()) continue;
+
+        // Only skip the intermediate block if it is EMPTY
+        // (i.e., contains only its unconditional branch terminator).
+        // Otherwise we'd lose important instructions.
+        if (dest->size() != 1) continue;
 
         auto *destTerm = dest->getTerminator();
         if (!destTerm) continue;

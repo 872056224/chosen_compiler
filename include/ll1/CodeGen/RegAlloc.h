@@ -13,13 +13,17 @@ namespace ll1 {
 // ============================================================
 // LinearScanRegAlloc — Linear scan register allocator
 //
-// 1. Compute dataflow-based liveness (uses/defs per block,
-//    LiveIn/LiveOut via iterative backward propagation)
-// 2. Build LiveRange per vreg from block-level liveness
-// 3. Walk instructions, assign physregs from allocation pool
-// 4. On conflict, spill the value with furthest next-use
-// 5. Insert spill/reload MachineInstr as needed
-// 6. Coalesce COPY instructions when possible
+// 1. Assign global instruction positions per block
+// 2. Compute Uses/Defs per block
+// 3. Solve LiveIn/LiveOut via backward iterative dataflow on CFG
+// 4. Derive live ranges from LiveIn/LiveOut sets
+// 5. Walk instructions, assign physregs from allocation pool
+// 6. On conflict, spill the value with furthest next-use
+// 7. Insert spill/reload MachineInstr as needed
+// 8. Coalesce COPY instructions when possible
+//
+// LLVM reference: LiveVariables.cpp — SSA-based backward propagation,
+// walking from uses back to defs via CFG predecessors.
 // ============================================================
 class LinearScanRegAlloc {
 public:
@@ -27,99 +31,102 @@ public:
 
     void run(MachineFunction &MF);
 
-    // Result accessors (for printer)
-    const std::unordered_map<Register, Register>& getMapping() const { return V2P; }
-    const std::unordered_map<Register, int>& getSpillSlots() const { return SpillSlots; }
-    int getSpillSize() const { return MaxSpillOffset - FrameSize; }
+    // Get spill size (additional bytes needed beyond normal frame)
+    int getSpillSize() const;
 
 private:
     const TargetRegisterInfo &TRI;
+    MachineFunction *MF = nullptr;
 
-    // === Liveness data structures ===
-
-    // Per-block liveness (computed once, used for live ranges)
+    // ============================================================
+    // Block-level liveness (dataflow)
+    // ============================================================
     struct BlockLiveInfo {
-        std::set<Register> Uses;   // vregs used before any def in this block
+        std::set<Register> Uses;   // vregs read before defined in this block
         std::set<Register> Defs;   // vregs defined in this block
         std::set<Register> LiveIn; // vregs live entering this block
         std::set<Register> LiveOut;// vregs live leaving this block
-        unsigned StartPos;          // global position of first instruction
-        unsigned EndPos;            // global position after last instruction
-        // Per-vreg last-use instruction index within this block (0-based)
-        std::unordered_map<Register, unsigned> VRegLastUse;
+        unsigned StartPos = 0;     // global position of first instruction
+        unsigned EndPos = 0;       // global position after last instruction
     };
-    std::unordered_map<MachineBasicBlock*, BlockLiveInfo> BlockLive;
 
-    // Live range per virtual register (computed from BlockLive)
+    std::unordered_map<MachineBasicBlock*, BlockLiveInfo> BlockInfo;
+
+    // ============================================================
+    // Live range per virtual register
+    // ============================================================
     struct LiveRange {
-        unsigned FirstDef = 0;  // global position of unique definition
-        unsigned LastUse = 0;   // global position of last use
-        bool SpilledHere = false; // temporary flag during allocation
+        unsigned FirstDef = UINT32_MAX;  // global position of definition
+        unsigned LastUse = 0;            // global position of last use
+        bool valid() const { return FirstDef != UINT32_MAX; }
     };
     std::unordered_map<Register, LiveRange> LiveRanges;
 
-    // === Allocation state ===
-
+    // ============================================================
     // Registers currently free
+    // ============================================================
     std::vector<Register> FreeRegs;
 
     // Currently occupied physical registers
     struct Occupant {
         Register VReg;      // Virtual register occupying this physreg
-        unsigned LastUse;   // When this vreg is last used (from LiveRange)
+        unsigned LastUse;   // When this vreg is last used
     };
     std::unordered_map<Register, Occupant> Occupied;
 
     // Virtual → Physical mapping (output)
     std::unordered_map<Register, Register> V2P;
 
-    // Spill slots: vreg → frame index (offset from bx)
+    // Spill slots: vreg → FrameIndex (from CreateStackObject)
     std::unordered_map<Register, int> SpillSlots;
-    int NextSpillSlot = 0;
-    int FrameSize = 0;
-    int MaxSpillOffset = 0;
 
     // Vregs evicted during current allocation step that need spill stores.
     // Second element is the physreg that held the value at eviction time.
     std::vector<std::pair<Register, Register>> PendingSpillStores;
 
-    // Persistent: evicted vreg → physreg it was evicted from (for block-entry reloads)
-    std::unordered_map<Register, Register> EvictedPhysRegs;
-
-    // Current block being processed (for freeDeadRegs liveness check)
-    MachineBasicBlock *CurBlock = nullptr;
-
     // Statistics
     unsigned CopyEliminated = 0;
     unsigned Spills = 0;
 
-    // === Liveness computation ===
+    // ============================================================
+    // Phase 1: Assign global positions and compute Uses/Defs
+    // ============================================================
+    void assignPositionsAndComputeUsesDefs(MachineFunction &MF);
 
-    // Phase 1: Compute Uses/Defs per block + assign global positions
-    void computeBlockUsesAndDefs(MachineFunction &MF);
+    // ============================================================
+    // Phase 2: Solve LiveIn/LiveOut (backward iterative dataflow)
+    // ============================================================
+    void solveLiveInOut(MachineFunction &MF);
 
-    // Phase 2: Solve LiveIn/LiveOut via iterative backward dataflow
-    void computeLiveInOut(MachineFunction &MF);
+    // ============================================================
+    // Phase 3: Build LiveRange for each vreg
+    // ============================================================
+    void buildLiveRanges(MachineFunction &MF);
 
-    // Phase 3: Build LiveRange for each vreg from block-level liveness
-    void computeLiveRanges(MachineFunction &MF);
-
-    // === Allocation helpers ===
-
-    // Allocate a physical register for a vreg
-    Register allocate(Register VReg, unsigned currentPos);
+    // ============================================================
+    // Allocation
+    // ============================================================
+    Register allocate(Register VReg, unsigned currentPos,
+                      const std::set<Register> *liveOut = nullptr);
 
     // Free registers whose occupants are dead (last use < current position)
-    void freeDeadRegs(unsigned currentPos, unsigned instrIdx);
+    void freeDeadRegs(unsigned currentPos, const std::set<Register> *liveOut = nullptr);
 
     // Spill: evict a physreg's occupant to memory
     void spill(Register PhysReg);
 
+    // Reload: load a spilled vreg into a physreg
+    Register reload(Register VReg);
+
     // Try to coalesce a COPY instruction
     bool tryCoalesceCopy(MachineInstr &MI);
 
-    // Get a spill slot for a vreg
+    // Get a spill slot FrameIndex for a vreg
     int getSpillSlot(Register VReg);
+
+    // Get the reg alloc mapping (for the printer)
+    const std::unordered_map<Register, Register>& getMapping() const { return V2P; }
+    const std::unordered_map<Register, int>& getSpillSlots() const { return SpillSlots; }
 
     friend class CodeGen;
 };
